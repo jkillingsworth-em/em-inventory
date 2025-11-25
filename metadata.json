@@ -1,0 +1,5 @@
+{
+  "name": "Electro-Mech Inventory Tracker",
+  "description": "A simple inventory tracking application for scoreboard components across multiple warehouse locations. Users can add, move, and import inventory data.",
+  "requestFramePermissions": []
+}

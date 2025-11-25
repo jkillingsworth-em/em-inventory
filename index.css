@@ -1,0 +1,192 @@
+:root {
+  --em-red: #CC0000;
+  --em-dark-blue: #0a1e3a;
+  --em-gray: #232323;
+  --bg-light: #f3f4f6;
+  --bg-white: #ffffff;
+}
+
+body {
+  background-color: var(--bg-light);
+  color: var(--em-gray);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* --- Layout Utilities --- */
+.fluid-container {
+  width: 100%;
+  padding-right: 1rem;
+  padding-left: 1rem;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+@media (min-width: 640px) {
+  .fluid-container {
+    max-width: 640px;
+    padding-right: 1.5rem;
+    padding-left: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .fluid-container {
+    max-width: 768px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fluid-container {
+    max-width: 1024px;
+    padding-right: 2rem;
+    padding-left: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .fluid-container {
+    max-width: 1280px;
+  }
+}
+
+/* --- Form Controls --- */
+/* Default style: White background, Black text */
+.form-control {
+  appearance: none;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem; /* rounded-md */
+  padding: 0.5rem 0.75rem;
+  width: 100%;
+  font-size: 1rem;
+  line-height: 1.5;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: var(--em-red);
+  box-shadow: 0 0 0 1px var(--em-red);
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+/* --- Buttons --- */
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 9999px;
+  transition: background-color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-icon:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+/* --- Table Styles --- */
+.inventory-table-container {
+  background-color: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+}
+
+.inventory-table thead {
+  background-color: #f9fafb;
+}
+
+.inventory-table th {
+  font-size: 16px !important; /* Requested Size */
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  color: #111827; /* gray-900 */
+  padding: 1rem 1.5rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.inventory-table td {
+  padding: 1rem 1.5rem;
+  white-space: nowrap;
+}
+
+.inventory-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+/* --- Mobile Card Styles --- */
+.mobile-card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.05);
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-card-header {
+  padding: 1rem;
+  border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.mobile-card-content {
+  padding: 1rem;
+}
+
+.mobile-card-footer {
+  padding: 0.75rem 1rem;
+  background-color: #f9fafb;
+  border-top: 1px solid #e5e7eb;
+  border-bottom-left-radius: 0.75rem;
+  border-bottom-right-radius: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background-color: #e5e7eb;
+  color: #374151;
+  text-transform: uppercase;
+}
+
+/* --- Typography Helpers --- */
+.text-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.2s ease-out;
+}
