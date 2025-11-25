@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { ReportDataItem } from '../types';
 import { XMarkIcon } from './icons/XMarkIcon';
@@ -80,16 +81,14 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onC
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-full flex flex-col">
-                <div className="p-6 border-b">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-2xl font-bold text-gray-800">Report Preview</h2>
-                        <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                            <XMarkIcon className="w-6 h-6" />
-                        </button>
-                    </div>
+            <div className="modal-container max-w-4xl flex flex-col">
+                <div className="modal-header border-b">
+                    <h2>Report Preview</h2>
+                    <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
                 </div>
-                <div className="p-6 overflow-y-auto">
+                <div className="modal-body p-6 overflow-y-auto">
                     <div className="overflow-x-auto border rounded-lg">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
@@ -126,7 +125,7 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onC
                         </table>
                     </div>
                 </div>
-                <div className="bg-gray-50 px-6 py-4 border-t flex justify-end space-x-3">
+                <div className="modal-footer">
                     <button type="button" onClick={handleExportCSV} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-600 border border-transparent rounded-md shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                         <ArrowDownTrayIcon className="w-4 h-4 mr-2"/>
                         Export CSV

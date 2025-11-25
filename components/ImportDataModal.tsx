@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { InventoryItem, Location, Stock } from '../types';
 import { XMarkIcon } from './icons/XMarkIcon';
@@ -136,21 +137,21 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold text-gray-800">Import from CSV</h2>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                            <XMarkIcon className="w-6 h-6" />
-                        </button>
-                    </div>
+            <div className="modal-container max-w-lg">
+                <div className="modal-header">
+                    <h2>Import from CSV</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="modal-body">
                     <div className="text-sm text-gray-600 space-y-2">
                         <p>Select a CSV file to import inventory data. The data will be added to your existing inventory.</p>
                         <p><strong>Required columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">ID</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DESCRIPTION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">QTY</code>.</p>
                         <p><strong>Optional columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SOURCE</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">PO_NUMBER</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DATE_RECEIVED</code>.</p>
                     </div>
                     <div className="mt-6">
-                        <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700">CSV File</label>
+                        <label htmlFor="file-upload">CSV File</label>
                         <input
                             id="file-upload"
                             type="file"
@@ -161,7 +162,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                     </div>
                     {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
                 </div>
-                <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3">
+                <div className="modal-footer">
                     <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50">
                         Cancel
                     </button>

@@ -42,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({
             <div className="fluid-container">
                 <div className="flex items-center justify-between h-20">
                     <div className="flex items-center gap-4">
-                        <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wider truncate">
+                        <h1 className="truncate">
                             <span className="text-em-red">ELECTRO-MECH</span> INVENTORY
                         </h1>
                         <div className="flex items-center space-x-1 bg-black bg-opacity-20 rounded-lg">

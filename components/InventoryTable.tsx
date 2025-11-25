@@ -17,7 +17,7 @@ interface InventoryTableProps {
     onMoveClick: (item: InventoryItem) => void;
     onDeleteClick: (itemId: string) => void;
     onDuplicateClick: (item: InventoryItem) => void;
-    onEditClick: (item: InventoryItem) => void;
+    onEditClick: (item: InventoryItem, field?: string) => void;
     selectedItemIds: Set<string>;
     onSelectionChange: (itemId: string) => void;
     onSelectAll: (itemIds: string[], select: boolean) => void;
@@ -75,6 +75,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         const locationMap = new Map(locations.map(loc => [loc.id, loc.name]));
         return items.map(item => {
             const allItemStock = stock.filter(s => s.itemId === item.id);
+            const totalQuantity = allItemStock.reduce((sum, s) => sum + s.quantity, 0);
             
             const stockInView = locationView === 'all'
                 ? allItemStock
@@ -86,11 +87,20 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 .map(s => ({...s, locationName: locationMap.get(s.locationId) || 'Unknown Location'}))
                 .sort((a,b) => a.locationName.localeCompare(b.locationName));
             
-            const stockTooltip = locationsWithStock.length > 0 ? locationsWithStock.map(ls => `${ls.locationName}: ${ls.quantity}`).join(', ') : 'No Stock';
+            // Calculate ETR
+            const etr = item.threeYearAvg && item.threeYearAvg > 0 && totalQuantity > 0
+                ? `${((totalQuantity / (item.threeYearAvg / 12))).toFixed(1)} months`
+                : 'N/A';
+                
+            const stockTooltip = locationsWithStock.length > 0 
+                ? `Total: ${totalQuantity} | ETR: ${etr} | Locations: ${locationsWithStock.map(ls => `${ls.locationName}: ${ls.quantity}`).join(', ')}` 
+                : `Total: 0 | ETR: ${etr} | No Stock`;
             
             return { 
                 ...item, 
-                quantityInView, 
+                quantityInView,
+                totalQuantity,
+                etr,
                 locationsWithStock, 
                 category: item.category || 'Uncategorized', 
                 stockTooltip, 
@@ -140,6 +150,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 
     const uniqueCategories = useMemo(() => Array.from(new Set(items.map(i => i.category || 'Uncategorized'))).sort(), [items]);
 
+    const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(i => selectedItemIds.has(i.id));
+
     const renderActionButtons = (item: any) => (
         <div className="flex items-center space-x-1">
             <button onClick={() => onGenerateReportForItem(item.id)} className="btn-icon text-green-600 hover:text-green-800" title="Report"><DocumentChartBarIcon className="w-5 h-5" /></button>
@@ -156,15 +168,21 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 <div className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5 border-gray-300 rounded" style={{ accentColor: item.accentColor }} checked={selectedItemIds.has(item.id)} onChange={() => onSelectionChange(item.id)}/>
                     <div>
                         <div className="text-lg font-bold text-gray-900">{item.id}</div>
-                        <span className="badge mt-1" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'No Category' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span>
+                        <span onClick={() => onEditClick(item, 'category')} className="badge mt-1 cursor-pointer hover:bg-yellow-100" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'No Category' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span>
                     </div>
                 </div>
-                <div className="text-right"><div className="text-2xl font-bold text-gray-900">{item.quantityInView}</div><div className="text-label">Qty</div></div>
+                <div className="text-right" onClick={() => onEditClick(item, 'quantity')}><div className="text-2xl font-bold text-gray-900 cursor-pointer hover:bg-yellow-100 rounded-md p-1">{item.quantityInView}</div><div className="text-label">Qty</div></div>
             </div>
-            <div className="mobile-card-content"><p className="text-gray-700 text-base">{item.description}</p></div>
+            <div className="mobile-card-content" onClick={() => onEditClick(item, 'description')}><p className="text-gray-700 text-base cursor-pointer hover:bg-yellow-100 rounded-md p-1">{item.description}</p></div>
             {expandedRows.has(item.id) && (
                 <div className="bg-gray-50 border-t border-b border-gray-200 px-4 py-3">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Location Details</h4>
+                    <div className="flex justify-between items-baseline mb-2">
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location Details</h4>
+                        <div className="text-right">
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">ETR</p>
+                            <p className="text-sm font-semibold text-em-dark-blue">{item.etr}</p>
+                        </div>
+                    </div>
                     {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">No stock recorded.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock: any, idx: number) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
                 </div>
             )}
@@ -181,12 +199,20 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 <td className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded cursor-pointer" style={{ accentColor: item.accentColor }} checked={selectedItemIds.has(item.id)} onChange={() => onSelectionChange(item.id)}/></td>
                 <td className="w-12 text-center">{item.locationsWithStock.length > 0 && <button onClick={() => toggleRowExpansion(item.id)} className="text-gray-500 hover:text-gray-800 p-1">{expandedRows.has(item.id) ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}</button>}</td>
                 <td className="font-bold text-gray-900 text-lg">{item.id}</td>
-                <td className="text-gray-700">{item.description}</td>
-                <td><span className="badge" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'Uncategorized' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span></td>
-                <td className="text-gray-900 font-bold text-lg">{item.quantityInView}</td>
+                <td onClick={() => onEditClick(item, 'description')} className="text-gray-700 cursor-pointer hover:bg-yellow-50 rounded-md">{item.description}</td>
+                <td onClick={() => onEditClick(item, 'category')} className="cursor-pointer hover:bg-yellow-50 rounded-md"><span className="badge" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'Uncategorized' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span></td>
+                <td onClick={() => onEditClick(item, 'quantity')} className="text-gray-900 font-bold text-lg cursor-pointer hover:bg-yellow-50 rounded-md">{item.quantityInView}</td>
                 <td>{renderActionButtons(item)}</td>
             </tr>
-            {expandedRows.has(item.id) && (<tr><td colSpan={7} className="p-0 bg-gray-50 border-b border-gray-200 shadow-inner"><div className="px-8 py-4"><h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider mb-3">Stock by Location</h4><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock: any, index: number) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">Qty: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>Detail:</strong> {locStock.subLocationDetail}</p>}<p><strong>Source:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>Date:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
+            {expandedRows.has(item.id) && (<tr><td colSpan={7} className="p-0 bg-gray-50 border-b border-gray-200 shadow-inner"><div className="px-8 py-4">
+                <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Stock by Location</h4>
+                    <div className="text-right">
+                        <span className="text-sm font-bold text-gray-700 uppercase tracking-wider mr-2">Est. Time Remaining:</span>
+                        <span className="text-base font-bold text-em-dark-blue bg-white px-3 py-1 rounded-md border border-gray-200 shadow-sm">{item.etr}</span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock: any, index: number) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">Qty: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>Detail:</strong> {locStock.subLocationDetail}</p>}<p><strong>Source:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>Date:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
         </React.Fragment>
     ));
 
@@ -231,7 +257,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 
             <div className="hidden md:block inventory-table-container">
                 <table className="min-w-full divide-y divide-gray-200 inventory-table">
-                    <thead><tr><th scope="col" className="w-12 text-center"></th><th scope="col" className="w-12 text-center"></th>
+                    <thead><tr>
+                        <th scope="col" className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded" checked={allVisibleSelected} onChange={() => onSelectAll(sortedItems.map(i => i.id), !allVisibleSelected)} title="Select All" /></th>
+                        <th scope="col" className="w-12 text-center"></th>
                         <SortableHeader sortValue="id" title="Unique identifier for the item (SKU)">Item Code</SortableHeader>
                         <SortableHeader sortValue="description" title="A brief description of the item">Description</SortableHeader>
                         <SortableHeader sortValue="category" title="The primary category and optional sub-category">Categories</SortableHeader>

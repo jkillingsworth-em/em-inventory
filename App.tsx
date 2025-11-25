@@ -22,8 +22,8 @@ const initialLocations: Location[] = [
 ];
 
 const initialItems: InventoryItem[] = [
-    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED' },
-    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER' },
+    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', oneYearAvg: 1200, threeYearAvg: 1100 },
+    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', oneYearAvg: 500, threeYearAvg: 550 },
 ];
 
 const initialStock: Stock[] = [
@@ -57,6 +57,7 @@ const App: React.FC = () => {
     const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
     const [reportData, setReportData] = useState<ReportDataItem[] | null>(null);
     const [selectedLocationView, setSelectedLocationView] = useState('all');
+    const [fieldToFocus, setFieldToFocus] = useState<string | null>(null);
 
     // History State (for undo/redo)
     const [appState, setAppState, undo, redo, canUndo, canRedo] = useHistoryState({
@@ -76,14 +77,21 @@ const App: React.FC = () => {
         setAddItemModalOpen(true);
     }, []);
     
-    const handleOpenEditModal = useCallback((item: InventoryItem) => {
+    const handleOpenEditModal = useCallback((item: InventoryItem, field?: string) => {
         setItemToEdit(item);
+        setFieldToFocus(field || null);
         setEditModalOpen(true);
     }, []);
 
     const handleCloseAddItemModal = () => {
         setAddItemModalOpen(false);
         setItemToDuplicate(null);
+    };
+    
+    const handleCloseEditModal = () => {
+        setEditModalOpen(false);
+        setItemToEdit(null);
+        setFieldToFocus(null);
     };
 
     const handleDeleteItem = useCallback((itemId: string) => {
@@ -123,21 +131,24 @@ const App: React.FC = () => {
         handleCloseAddItemModal();
     }, [setAppState]);
     
-    const handleEditItem = useCallback((updatedItem: InventoryItem, colors?: { category?: string, subCategory?: string }) => {
+    const handleEditItem = useCallback((updatedItem: InventoryItem, updatedStockForThisItem: Stock[], colors?: { category?: string, subCategory?: string }) => {
         setAppState(prev => {
             const nextColors = { ...prev.categoryColors };
             if (colors) {
                 if (updatedItem.category && colors.category) nextColors[updatedItem.category] = colors.category;
                 if (updatedItem.subCategory && colors.subCategory) nextColors[updatedItem.subCategory] = colors.subCategory;
             }
+            const otherItemsStock = prev.stock.filter(s => s.itemId !== updatedItem.id);
+            const newStock = [...otherItemsStock, ...updatedStockForThisItem].filter(s => s.quantity > 0);
+
             return {
                 ...prev,
                 items: prev.items.map(item => item.id === updatedItem.id ? updatedItem : item),
+                stock: newStock,
                 categoryColors: nextColors
             };
         });
-        setEditModalOpen(false);
-        setItemToEdit(null);
+        handleCloseEditModal();
     }, [setAppState]);
 
     const handleMoveStock = useCallback((
@@ -271,6 +282,11 @@ const App: React.FC = () => {
 
         items.forEach(item => {
             const itemStock = stock.filter(s => s.itemId === item.id);
+            const totalQty = itemStock.reduce((sum, s) => sum + s.quantity, 0);
+            const etr = item.threeYearAvg && item.threeYearAvg > 0 && totalQty > 0
+                ? `${((totalQty / (item.threeYearAvg / 12))).toFixed(1)} months`
+                : 'N/A';
+
             if (itemStock.length > 0) {
                 itemStock.forEach(s => {
                     dataToExport.push({
@@ -278,6 +294,9 @@ const App: React.FC = () => {
                         'DESCRIPTION': item.description,
                         'CATEGORY': item.category || '',
                         'SUB_CATEGORY': item.subCategory || '',
+                        '1_YR_AVG': item.oneYearAvg || 0,
+                        '3_YR_AVG': item.threeYearAvg || 0,
+                        'ETR': etr,
                         'LOCATION': locationMap.get(s.locationId) || s.locationId,
                         'SUB_LOCATION': s.subLocationDetail || '',
                         'QTY': s.quantity,
@@ -292,6 +311,9 @@ const App: React.FC = () => {
                     'DESCRIPTION': item.description,
                     'CATEGORY': item.category || '',
                     'SUB_CATEGORY': item.subCategory || '',
+                    '1_YR_AVG': item.oneYearAvg || 0,
+                    '3_YR_AVG': item.threeYearAvg || 0,
+                    'ETR': etr,
                     'LOCATION': '',
                     'SUB_LOCATION': '',
                     'QTY': 0,
@@ -363,7 +385,7 @@ const App: React.FC = () => {
                 />
             </main>
             {isAddItemModalOpen && <AddItemModal onClose={handleCloseAddItemModal} onAddItem={handleAddItem} locations={locations} existingItemIds={items.map(i => i.id)} itemToDuplicate={itemToDuplicate} currentCategoryColors={categoryColors}/>}
-            {isEditModalOpen && itemToEdit && <EditItemModal item={itemToEdit} onClose={() => setEditModalOpen(false)} onEditItem={handleEditItem} currentCategoryColors={categoryColors} />}
+            {isEditModalOpen && itemToEdit && <EditItemModal item={itemToEdit} stock={stock.filter(s => s.itemId === itemToEdit.id)} locations={locations} onClose={handleCloseEditModal} onEditItem={handleEditItem} currentCategoryColors={categoryColors} fieldToFocus={fieldToFocus} />}
             {isMoveModalOpen && itemToMove && <MoveStockModal item={itemToMove} locations={locations} stock={stock} onClose={() => setMoveModalOpen(false)} onMoveStock={handleMoveStock} />}
             {isImportModalOpen && <ImportDataModal onClose={() => setImportModalOpen(false)} onImport={handleImportData} />}
             {isReportModalOpen && <GenerateReportModal onClose={() => setReportModalOpen(false)} onGenerate={handleGenerateReport} items={items} selectedItemCount={selectedItemIds.size}/>}
