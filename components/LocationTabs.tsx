@@ -8,7 +8,8 @@ interface LocationTabsProps {
 }
 
 const LocationTabs: React.FC<LocationTabsProps> = ({ locations, selectedLocation, onSelectLocation }) => {
-    const baseStyle = "px-4 py-3 text-sm font-bold text-center border-b-4 transition-colors duration-200 cursor-pointer whitespace-nowrap";
+    // Increased font size to text-lg and ensured uppercase
+    const baseStyle = "px-4 py-3 text-lg font-bold text-center border-b-4 transition-colors duration-200 cursor-pointer whitespace-nowrap uppercase";
     const activeStyle = "border-em-red text-em-red";
     const inactiveStyle = "border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300";
 
@@ -19,7 +20,7 @@ const LocationTabs: React.FC<LocationTabsProps> = ({ locations, selectedLocation
                     onClick={() => onSelectLocation('all')}
                     className={`${baseStyle} ${selectedLocation === 'all' ? activeStyle : inactiveStyle}`}
                 >
-                    All Inventory
+                    ALL INVENTORY
                 </button>
                 {locations.map((location) => (
                     <button

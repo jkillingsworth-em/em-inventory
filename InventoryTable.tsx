@@ -71,17 +71,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         return undefined;
     };
 
-    // Calculate Hierarchy for Filter Dropdown
-    const categoryHierarchy = useMemo(() => {
-        const hierarchy: Record<string, Set<string>> = {};
-        items.forEach(item => {
-            const cat = item.category || 'UNCATEGORIZED';
-            if (!hierarchy[cat]) hierarchy[cat] = new Set();
-            if (item.subCategory) hierarchy[cat].add(item.subCategory);
-        });
-        return hierarchy;
-    }, [items]);
-
     const mappedItems = useMemo(() => {
         const locationMap = new Map(locations.map(loc => [loc.id, loc.name]));
         return items.map(item => {
@@ -95,17 +84,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             const quantityInView = stockInView.reduce((sum, s) => sum + s.quantity, 0);
 
             const locationsWithStock = allItemStock
-                .map(s => ({...s, locationName: locationMap.get(s.locationId) || 'UNKNOWN LOCATION'}))
+                .map(s => ({...s, locationName: locationMap.get(s.locationId) || 'Unknown Location'}))
                 .sort((a,b) => a.locationName.localeCompare(b.locationName));
             
             // Calculate ETR
             const etr = item.threeYearAvg && item.threeYearAvg > 0 && totalQuantity > 0
-                ? `${((totalQuantity / (item.threeYearAvg / 12))).toFixed(1)} MONTHS`
+                ? `${((totalQuantity / (item.threeYearAvg / 12))).toFixed(1)} months`
                 : 'N/A';
                 
             const stockTooltip = locationsWithStock.length > 0 
-                ? `TOTAL: ${totalQuantity} | ETR: ${etr} | LOCATIONS: ${locationsWithStock.map(ls => `${ls.locationName}: ${ls.quantity}`).join(', ')}` 
-                : `TOTAL: 0 | ETR: ${etr} | NO STOCK`;
+                ? `Total: ${totalQuantity} | ETR: ${etr} | Locations: ${locationsWithStock.map(ls => `${ls.locationName}: ${ls.quantity}`).join(', ')}` 
+                : `Total: 0 | ETR: ${etr} | No Stock`;
             
             return { 
                 ...item, 
@@ -113,7 +102,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 totalQuantity,
                 etr,
                 locationsWithStock, 
-                category: item.category || 'UNCATEGORIZED', 
+                category: item.category || 'Uncategorized', 
                 stockTooltip, 
                 accentColor: getItemColor(item) 
             };
@@ -128,48 +117,21 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         }
 
         if (searchQuery) {
-            const lower = searchQuery.toUpperCase();
-            result = result.filter(item => item.id.toUpperCase().includes(lower) || item.description.toUpperCase().includes(lower) || item.category.toUpperCase().includes(lower) || (item.subCategory && item.subCategory.toUpperCase().includes(lower)));
+            const lower = searchQuery.toLowerCase();
+            result = result.filter(item => item.id.toLowerCase().includes(lower) || item.description.toLowerCase().includes(lower) || item.category.toLowerCase().includes(lower) || (item.subCategory && item.subCategory.toLowerCase().includes(lower)));
         }
-
-        // Updated Category Filtering Logic to handle "Main|Sub" format
-        if (filterCategory) {
-            if (filterCategory.includes('|')) {
-                const [cat, sub] = filterCategory.split('|');
-                result = result.filter(item => (item.category || 'UNCATEGORIZED') === cat && item.subCategory === sub);
-            } else {
-                result = result.filter(item => (item.category || 'UNCATEGORIZED') === filterCategory);
-            }
-        }
-
+        if (filterCategory) result = result.filter(item => item.category === filterCategory);
         if (filterLocation) result = result.filter(item => item.locationsWithStock.some(l => l.locationId === filterLocation));
         return result;
     }, [mappedItems, searchQuery, filterCategory, filterLocation, locationView]);
 
     const sortedItems = useMemo(() => {
         return [...filteredItems].sort((a, b) => {
-            if (sortKey === 'category') {
-                const catA = a.category || '';
-                const catB = b.category || '';
-                const subCatA = a.subCategory || '';
-                const subCatB = b.subCategory || '';
-
-                const categoryCompare = catA.localeCompare(catB);
-                if (categoryCompare !== 0) {
-                    return sortDirection === 'asc' ? categoryCompare : -categoryCompare;
-                }
-                const subCategoryCompare = subCatA.localeCompare(subCatB);
-                return sortDirection === 'asc' ? subCategoryCompare : -subCategoryCompare;
-            }
-
             const aValue = a[sortKey];
             const bValue = b[sortKey];
-            if (typeof aValue === 'number' && typeof bValue === 'number') {
-                return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-            }
-            
-            const stringA = String(aValue ?? '');
-            const stringB = String(bValue ?? '');
+            if (typeof aValue === 'string' && typeof bValue === 'string') return sortDirection === 'asc' ? aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+            if (typeof aValue === 'number' && typeof bValue === 'number') return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
+            const stringA = String(aValue); const stringB = String(bValue);
             return sortDirection === 'asc' ? stringA.localeCompare(stringB) : stringB.localeCompare(stringA);
         });
     }, [filteredItems, sortKey, sortDirection]);
@@ -186,15 +148,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         return sortedItems;
     }, [sortedItems, isGrouped]);
 
+    const uniqueCategories = useMemo(() => Array.from(new Set(items.map(i => i.category || 'Uncategorized'))).sort(), [items]);
+
     const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(i => selectedItemIds.has(i.id));
 
     const renderActionButtons = (item: any) => (
         <div className="flex items-center space-x-1">
-            <button onClick={() => onGenerateReportForItem(item.id)} className="btn-icon text-green-600 hover:text-green-800" title="REPORT"><DocumentChartBarIcon className="w-5 h-5" /></button>
-            <button onClick={() => onDuplicateClick(item)} className="btn-icon text-purple-600 hover:text-purple-800" title="DUPLICATE"><DocumentDuplicateIcon className="w-5 h-5" /></button>
-            <button onClick={() => onEditClick(item)} className="btn-icon text-yellow-600 hover:text-yellow-800" title="EDIT"><PencilSquareIcon className="w-5 h-5" /></button>
-            <button onClick={() => onMoveClick(item)} className="btn-icon text-blue-600 hover:text-blue-800" title="MOVE"><ArrowRightLeftIcon className="w-5 h-5" /></button>
-            <button onClick={() => onDeleteClick(item.id)} className="btn-icon text-red-600 hover:text-red-800" title="DELETE"><TrashIcon className="w-5 h-5" /></button>
+            <button onClick={() => onGenerateReportForItem(item.id)} className="btn-icon text-green-600 hover:text-green-800" title="Report"><DocumentChartBarIcon className="w-5 h-5" /></button>
+            <button onClick={() => onDuplicateClick(item)} className="btn-icon text-purple-600 hover:text-purple-800" title="Duplicate"><DocumentDuplicateIcon className="w-5 h-5" /></button>
+            <button onClick={() => onEditClick(item)} className="btn-icon text-yellow-600 hover:text-yellow-800" title="Edit"><PencilSquareIcon className="w-5 h-5" /></button>
+            <button onClick={() => onMoveClick(item)} className="btn-icon text-blue-600 hover:text-blue-800" title="Move"><ArrowRightLeftIcon className="w-5 h-5" /></button>
+            <button onClick={() => onDeleteClick(item.id)} className="btn-icon text-red-600 hover:text-red-800" title="Delete"><TrashIcon className="w-5 h-5" /></button>
         </div>
     );
 
@@ -204,26 +168,26 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 <div className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5 border-gray-300 rounded" style={{ accentColor: item.accentColor }} checked={selectedItemIds.has(item.id)} onChange={() => onSelectionChange(item.id)}/>
                     <div>
                         <div className="text-lg font-bold text-gray-900">{item.id}</div>
-                        <span onClick={() => onEditClick(item, 'category')} className="badge mt-1 cursor-pointer hover:bg-yellow-100" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'UNCATEGORIZED' ? 'NO CATEGORY' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span>
+                        <span onClick={() => onEditClick(item, 'category')} className="badge mt-1 cursor-pointer hover:bg-yellow-100" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'No Category' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span>
                     </div>
                 </div>
-                <div className="text-right" onClick={() => onEditClick(item, 'quantity')}><div className="text-2xl font-bold text-gray-900 cursor-pointer hover:bg-yellow-100 rounded-md p-1">{item.quantityInView}</div><div className="text-label">QTY</div></div>
+                <div className="text-right" onClick={() => onEditClick(item, 'quantity')}><div className="text-2xl font-bold text-gray-900 cursor-pointer hover:bg-yellow-100 rounded-md p-1">{item.quantityInView}</div><div className="text-label">Qty</div></div>
             </div>
             <div className="mobile-card-content" onClick={() => onEditClick(item, 'description')}><p className="text-gray-700 text-base cursor-pointer hover:bg-yellow-100 rounded-md p-1">{item.description}</p></div>
             {expandedRows.has(item.id) && (
                 <div className="bg-gray-50 border-t border-b border-gray-200 px-4 py-3">
                     <div className="flex justify-between items-baseline mb-2">
-                        <h4>LOCATION DETAILS</h4>
+                        <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">Location Details</h4>
                         <div className="text-right">
                             <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">ETR</p>
                             <p className="text-sm font-semibold text-em-dark-blue">{item.etr}</p>
                         </div>
                     </div>
-                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">NO STOCK RECORDED.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock: any, idx: number) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
+                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">No stock recorded.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock: any, idx: number) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
                 </div>
             )}
             <div className="mobile-card-footer">
-                <button onClick={() => toggleRowExpansion(item.id)} className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-900">{expandedRows.has(item.id) ? 'HIDE DETAILS' : 'VIEW DETAILS'}{expandedRows.has(item.id) ? <ChevronUpIcon className="ml-1 w-4 h-4"/> : <ChevronDownIcon className="ml-1 w-4 h-4"/>}</button>
+                <button onClick={() => toggleRowExpansion(item.id)} className="flex items-center text-sm font-medium text-gray-600 hover:text-gray-900">{expandedRows.has(item.id) ? 'Hide Details' : 'View Details'}{expandedRows.has(item.id) ? <ChevronUpIcon className="ml-1 w-4 h-4"/> : <ChevronDownIcon className="ml-1 w-4 h-4"/>}</button>
                 {renderActionButtons(item)}
             </div>
         </div>
@@ -236,19 +200,19 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 <td className="w-12 text-center">{item.locationsWithStock.length > 0 && <button onClick={() => toggleRowExpansion(item.id)} className="text-gray-500 hover:text-gray-800 p-1">{expandedRows.has(item.id) ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}</button>}</td>
                 <td className="font-bold text-gray-900 text-lg">{item.id}</td>
                 <td onClick={() => onEditClick(item, 'description')} className="text-gray-700 cursor-pointer hover:bg-yellow-50 rounded-md">{item.description}</td>
-                <td onClick={() => onEditClick(item, 'category')} className="cursor-pointer hover:bg-yellow-50 rounded-md"><span className="badge" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'UNCATEGORIZED' ? 'UNCATEGORIZED' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span></td>
+                <td onClick={() => onEditClick(item, 'category')} className="cursor-pointer hover:bg-yellow-50 rounded-md"><span className="badge" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'Uncategorized' ? 'Uncategorized' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span></td>
                 <td onClick={() => onEditClick(item, 'quantity')} className="text-gray-900 font-bold text-lg cursor-pointer hover:bg-yellow-50 rounded-md">{item.quantityInView}</td>
                 <td>{renderActionButtons(item)}</td>
             </tr>
             {expandedRows.has(item.id) && (<tr><td colSpan={7} className="p-0 bg-gray-50 border-b border-gray-200 shadow-inner"><div className="px-8 py-4">
                 <div className="flex justify-between items-center mb-3">
-                    <h4>STOCK BY LOCATION</h4>
+                    <h4 className="text-sm font-bold text-gray-700 uppercase tracking-wider">Stock by Location</h4>
                     <div className="text-right">
-                        <span className="text-sm font-bold text-gray-700 uppercase tracking-wider mr-2">EST. TIME REMAINING:</span>
+                        <span className="text-sm font-bold text-gray-700 uppercase tracking-wider mr-2">Est. Time Remaining:</span>
                         <span className="text-base font-bold text-em-dark-blue bg-white px-3 py-1 rounded-md border border-gray-200 shadow-sm">{item.etr}</span>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock: any, index: number) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">QTY: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>DETAIL:</strong> {locStock.subLocationDetail}</p>}<p><strong>SOURCE:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>DATE:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock: any, index: number) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">Qty: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>Detail:</strong> {locStock.subLocationDetail}</p>}<p><strong>Source:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>Date:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
         </React.Fragment>
     ));
 
@@ -262,45 +226,24 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     );
 
     const quantityHeaderTitle = locationView === 'all' 
-        ? 'TOTAL QTY' 
-        : `${locations.find(l => l.id === locationView)?.name || ''} QTY`;
-
+        ? 'Total Qty' 
+        : `${locations.find(l => l.id === locationView)?.name || ''} Qty`;
 
     return (
         <div className="space-y-6">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
                 <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
-                    <div className="relative w-full md:max-w-md"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><MagnifyingGlassIcon className="h-5 w-5 text-gray-400" /></div><input type="text" className="form-control pl-10" placeholder="SEARCH BY ID, DESCRIPTION, OR CATEGORY..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>
-                    <div className="flex items-center flex-col sm:flex-row gap-6 w-full md:w-auto">
-                        {selectedItemIds.size > 0 && <button onClick={onBulkEditClick} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 w-full sm:w-auto">BULK EDIT ({selectedItemIds.size})</button>}
-                        
-                        {/* LINK STYLE FILTERS */}
-                        <div className="relative">
-                            <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="link-style-select">
-                                <option value="">ALL CATEGORIES</option>
-                                {Object.keys(categoryHierarchy).sort().map(cat => (
-                                    <React.Fragment key={cat}>
-                                        <option value={cat}>{cat}</option>
-                                        {Array.from(categoryHierarchy[cat]).sort().map(sub => (
-                                            <option key={`${cat}|${sub}`} value={`${cat}|${sub}`}>{cat} / {sub}</option>
-                                        ))}
-                                    </React.Fragment>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="relative">
-                            <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="link-style-select">
-                                <option value="">ALL LOCATIONS</option>
-                                {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                            </select>
-                        </div>
+                    <div className="relative w-full md:max-w-md"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><MagnifyingGlassIcon className="h-5 w-5 text-gray-400" /></div><input type="text" className="form-control pl-10" placeholder="Search by ID, Description, or Category..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/></div>
+                    <div className="flex items-center flex-col sm:flex-row gap-4 w-full md:w-auto">
+                        {selectedItemIds.size > 0 && <button onClick={onBulkEditClick} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 w-full sm:w-auto">Bulk Edit ({selectedItemIds.size})</button>}
+                        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="form-control"><option value="">All Categories</option>{uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                        <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="form-control"><option value="">All Locations</option>{locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}</select>
                     </div>
-                    <div className="flex items-center space-x-3 whitespace-nowrap bg-gray-50 px-3 py-2 rounded-md border border-gray-200"><label htmlFor="group-toggle" className="text-sm font-bold text-gray-700 cursor-pointer">GROUP CATEGORIES</label><div className="relative inline-block w-10 align-middle select-none"><input type="checkbox" name="group-toggle" id="group-toggle" checked={isGrouped} onChange={() => setIsGrouped(!isGrouped)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer shadow-sm transition-all duration-300"/><label htmlFor="group-toggle" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label></div><style>{`.toggle-checkbox:checked { right: 0; border-color: #CC0000; }.toggle-checkbox:not(:checked) { right: calc(100% - 1.5rem); border-color: #e5e7eb; }.toggle-checkbox:checked + .toggle-label { background-color: #fca5a5; }`}</style></div>
+                    <div className="flex items-center space-x-3 whitespace-nowrap bg-gray-50 px-3 py-2 rounded-md border border-gray-200"><label htmlFor="group-toggle" className="text-sm font-bold text-gray-700 cursor-pointer">Group Categories</label><div className="relative inline-block w-10 align-middle select-none"><input type="checkbox" name="group-toggle" id="group-toggle" checked={isGrouped} onChange={() => setIsGrouped(!isGrouped)} className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer shadow-sm transition-all duration-300"/><label htmlFor="group-toggle" className="toggle-label block overflow-hidden h-6 rounded-full bg-gray-300 cursor-pointer transition-colors duration-300"></label></div><style>{`.toggle-checkbox:checked { right: 0; border-color: #CC0000; }.toggle-checkbox:not(:checked) { right: calc(100% - 1.5rem); border-color: #e5e7eb; }.toggle-checkbox:checked + .toggle-label { background-color: #fca5a5; }`}</style></div>
                 </div>
             </div>
 
-            {filteredItems.length === 0 && <div className="text-center py-12 px-4 bg-white rounded-lg shadow-sm border border-gray-200 no-items-message"><MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" /><h3>NO ITEMS FOUND</h3><p className="mt-1 text-gray-500">TRY ADJUSTING YOUR SEARCH OR FILTERS.</p></div>}
+            {filteredItems.length === 0 && <div className="text-center py-12 px-4 bg-white rounded-lg shadow-sm border border-gray-200"><MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" /><h3 className="mt-2 text-lg font-medium text-gray-900">No items found</h3><p className="mt-1 text-gray-500">Try adjusting your search or filters.</p></div>}
             
             <div className="md:hidden">
                 {(isGrouped ? Object.entries(displayData as Record<string, any[]>).sort(([catA], [catB]) => catA.localeCompare(catB)) : []).map(([category, itemsInCategory]) => (
@@ -315,13 +258,13 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             <div className="hidden md:block inventory-table-container">
                 <table className="min-w-full divide-y divide-gray-200 inventory-table">
                     <thead><tr>
-                        <th scope="col" className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded" checked={allVisibleSelected} onChange={() => onSelectAll(sortedItems.map(i => i.id), !allVisibleSelected)} title="SELECT ALL" /></th>
+                        <th scope="col" className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded" checked={allVisibleSelected} onChange={() => onSelectAll(sortedItems.map(i => i.id), !allVisibleSelected)} title="Select All" /></th>
                         <th scope="col" className="w-12 text-center"></th>
-                        <SortableHeader sortValue="id" title="UNIQUE IDENTIFIER FOR THE ITEM (SKU)">ITEM CODE</SortableHeader>
-                        <SortableHeader sortValue="description" title="A BRIEF DESCRIPTION OF THE ITEM">DESCRIPTION</SortableHeader>
-                        <SortableHeader sortValue="category" title="THE PRIMARY CATEGORY AND OPTIONAL SUB-CATEGORY">CATEGORIES</SortableHeader>
-                        <SortableHeader sortValue="quantityInView" title={`THE SUM OF STOCK FOR THE CURRENT VIEW`}>{quantityHeaderTitle}</SortableHeader>
-                        <th scope="col" title="ACTIONS TO PERFORM ON A SINGLE ITEM">ACTIONS</th>
+                        <SortableHeader sortValue="id" title="Unique identifier for the item (SKU)">Item Code</SortableHeader>
+                        <SortableHeader sortValue="description" title="A brief description of the item">Description</SortableHeader>
+                        <SortableHeader sortValue="category" title="The primary category and optional sub-category">Categories</SortableHeader>
+                        <SortableHeader sortValue="quantityInView" title={`The sum of stock for the current view`}>{quantityHeaderTitle}</SortableHeader>
+                        <th scope="col" title="Actions to perform on a single item">Actions</th>
                     </tr></thead>
                     <tbody className="divide-y divide-gray-200">
                         {isGrouped ? Object.entries(displayData as Record<string, any[]>).sort(([catA], [catB]) => catA.localeCompare(catB)).map(([category, itemsInCategory]) => (

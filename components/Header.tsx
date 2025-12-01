@@ -42,14 +42,14 @@ const Header: React.FC<HeaderProps> = ({
             <div className="fluid-container">
                 <div className="flex items-center justify-between h-20">
                     <div className="flex items-center gap-4">
-                        <h1 className="truncate">
+                        <h1 className="titlefont">
                             <span className="text-em-red">ELECTRO-MECH</span> INVENTORY
                         </h1>
                         <div className="flex items-center space-x-1 bg-black bg-opacity-20 rounded-lg">
-                            <button onClick={onUndo} disabled={!canUndo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="Undo">
+                            <button onClick={onUndo} disabled={!canUndo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="UNDO">
                                 <UndoIcon className="w-5 h-5 text-white" />
                             </button>
-                            <button onClick={onRedo} disabled={!canRedo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="Redo">
+                            <button onClick={onRedo} disabled={!canRedo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="REDO">
                                 <RedoIcon className="w-5 h-5 text-white" />
                             </button>
                         </div>
@@ -57,19 +57,19 @@ const Header: React.FC<HeaderProps> = ({
                     <div className="flex items-center space-x-3">
                          <button onClick={onAddItemClick} className="flex items-center px-3 py-2 text-sm font-medium text-white bg-em-red hover:bg-red-700 rounded-md transition duration-150 shadow-sm">
                             <PlusIcon className="h-5 w-5 mr-1" />
-                            <span className="hidden sm:inline">Add Item</span>
-                            <span className="sm:hidden">Add</span>
+                            <span className="hidden sm:inline">ADD ITEM</span>
+                            <span className="sm:hidden">ADD</span>
                         </button>
                         <div className="relative" ref={menuRef}>
                             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="flex items-center px-3 py-2 text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 rounded-md transition duration-150 border border-gray-600">
-                                <span>Actions</span>
+                                <span>ACTIONS</span>
                                 <ChevronDownIcon className="ml-2 h-4 w-4" />
                             </button>
                             {isMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 border border-gray-200 z-50 animate-fade-in-down">
-                                    <button onClick={() => handleMenuAction(onImportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Import Data (CSV)</button>
-                                    <button onClick={() => handleMenuAction(onExportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Export Listings</button>
-                                    <button onClick={() => handleMenuAction(onReportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Generate Report</button>
+                                    <button onClick={() => handleMenuAction(onImportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">IMPORT DATA (CSV)</button>
+                                    <button onClick={() => handleMenuAction(onExportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">EXPORT LISTINGS</button>
+                                    <button onClick={() => handleMenuAction(onReportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">GENERATE REPORT</button>
                                 </div>
                             )}
                         </div>
