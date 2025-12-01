@@ -4,13 +4,14 @@ import { XMarkIcon } from './icons/XMarkIcon';
 
 interface GenerateReportModalProps {
     onClose: () => void;
-    onGenerate: (options: { type: 'all' | 'category' | 'selected', value?: string }) => void;
+    onGenerate: (options: { type: 'all' | 'category' | 'selected' | 'low-alert', value?: string }) => void;
     items: InventoryItem[];
     selectedItemCount: number;
+    lowAlertItemCount: number;
 }
 
-const GenerateReportModal: React.FC<GenerateReportModalProps> = ({ onClose, onGenerate, items, selectedItemCount }) => {
-    const [reportType, setReportType] = useState<'all' | 'category' | 'selected'>('all');
+const GenerateReportModal: React.FC<GenerateReportModalProps> = ({ onClose, onGenerate, items, selectedItemCount, lowAlertItemCount }) => {
+    const [reportType, setReportType] = useState<'all' | 'category' | 'selected' | 'low-alert'>('all');
     const [selectedCategory, setSelectedCategory] = useState('');
 
     const categories = useMemo(() => {
@@ -47,6 +48,12 @@ const GenerateReportModal: React.FC<GenerateReportModalProps> = ({ onClose, onGe
                                 <div className="flex items-center">
                                     <input id="report-all" name="reportType" type="radio" value="all" checked={reportType === 'all'} onChange={() => setReportType('all')} className="h-4 w-4 text-em-red focus:ring-em-red border-gray-300" />
                                     <label htmlFor="report-all" className="ml-3">All Inventory</label>
+                                </div>
+                                <div className="flex items-center">
+                                    <input id="report-low-alert" name="reportType" type="radio" value="low-alert" checked={reportType === 'low-alert'} onChange={() => setReportType('low-alert')} disabled={lowAlertItemCount === 0} className="h-4 w-4 text-em-red focus:ring-em-red border-gray-300 disabled:bg-gray-200" />
+                                    <label htmlFor="report-low-alert" className={`ml-3 ${lowAlertItemCount === 0 ? 'text-gray-400' : ''}`}>
+                                        Low Alert Items ({lowAlertItemCount})
+                                    </label>
                                 </div>
                                 <div className="flex items-center">
                                     <input id="report-category" name="reportType" type="radio" value="category" checked={reportType === 'category'} onChange={() => setReportType('category')} className="h-4 w-4 text-em-red focus:ring-em-red border-gray-300" />

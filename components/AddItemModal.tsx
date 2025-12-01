@@ -37,6 +37,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
     const [fy2025, setFy2025] = useState(String(itemToDuplicate?.fy2025 ?? ''));
     const [threeYearAvg, setThreeYearAvg] = useState(itemToDuplicate?.threeYearAvg || 0);
     const [isThreeYearAvgManual, setIsThreeYearAvgManual] = useState(true);
+    const [lowAlertQuantity, setLowAlertQuantity] = useState(String(itemToDuplicate?.lowAlertQuantity ?? ''));
 
     const [idError, setIdError] = useState('');
     const [source, setSource] = useState<'OH' | 'PO'>('OH');
@@ -139,6 +140,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
         const fy2023Num = parseInt(fy2023, 10);
         const fy2024Num = parseInt(fy2024, 10);
         const fy2025Num = parseInt(fy2025, 10);
+        const lowAlertNum = parseInt(lowAlertQuantity, 10);
 
         onAddItem(
             { 
@@ -149,7 +151,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                 fy2023: !isNaN(fy2023Num) ? fy2023Num : undefined,
                 fy2024: !isNaN(fy2024Num) ? fy2024Num : undefined,
                 fy2025: !isNaN(fy2025Num) ? fy2025Num : undefined,
-                threeYearAvg: threeYearAvg > 0 ? threeYearAvg : undefined
+                threeYearAvg: threeYearAvg > 0 ? threeYearAvg : undefined,
+                lowAlertQuantity: !isNaN(lowAlertNum) ? lowAlertNum : undefined
             }, 
             finalStockEntries,
             colorsToSave
@@ -207,7 +210,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
 
                             <div className="form-section">
                                 <h3>USAGE & FORECASTING</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
                                      <div>
                                         <label htmlFor="fy2023">FY2023 USAGE</label>
                                         <input type="number" id="fy2023" value={fy2023} onChange={(e) => setFy2023(e.target.value)} className="form-control mt-1" />
@@ -221,8 +224,12 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                                         <input type="number" id="fy2025" value={fy2025} onChange={(e) => setFy2025(e.target.value)} className="form-control mt-1" />
                                     </div>
                                     <div>
-                                        <label htmlFor="threeYearAvg">3-YEAR AVG USAGE</label>
+                                        <label htmlFor="threeYearAvg">3-YEAR AVG</label>
                                         <input type="number" id="threeYearAvg" value={threeYearAvg || ''} onChange={(e) => setThreeYearAvg(parseInt(e.target.value) || 0)} className="form-control mt-1 disabled:bg-gray-200" disabled={!isThreeYearAvgManual} />
+                                    </div>
+                                     <div>
+                                        <label htmlFor="lowAlertQuantity">LOW ALERT QTY</label>
+                                        <input type="number" id="lowAlertQuantity" value={lowAlertQuantity} onChange={(e) => setLowAlertQuantity(e.target.value)} className="form-control mt-1" />
                                     </div>
                                 </div>
                             </div>

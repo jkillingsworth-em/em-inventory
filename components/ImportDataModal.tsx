@@ -92,6 +92,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
             fy2024: header.indexOf('FY2024'),
             fy2025: header.indexOf('FY2025'),
             threeYearAvg: header.indexOf('3_YR_AVG'),
+            lowAlertQty: header.indexOf('LOW_ALERT_QTY'),
         };
 
         const itemsMap = new Map<string, InventoryItem>();
@@ -117,6 +118,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                 const fy2024 = h.fy2024 > -1 ? parseInt(values[h.fy2024]?.trim(), 10) : undefined;
                 const fy2025 = h.fy2025 > -1 ? parseInt(values[h.fy2025]?.trim(), 10) : undefined;
                 const threeYearAvg = h.threeYearAvg > -1 ? parseInt(values[h.threeYearAvg]?.trim(), 10) : undefined;
+                const lowAlertQuantity = h.lowAlertQty > -1 ? parseInt(values[h.lowAlertQty]?.trim(), 10) : undefined;
                 
                 itemsMap.set(id, { 
                     id, 
@@ -126,7 +128,8 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                     fy2023,
                     fy2024,
                     fy2025,
-                    threeYearAvg
+                    threeYearAvg,
+                    lowAlertQuantity
                 });
             }
             
@@ -164,7 +167,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                     <div className="text-sm text-gray-600 space-y-2">
                         <p>Select a CSV file to import inventory data. The data will be added to your existing inventory.</p>
                         <p><strong>Required columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">ID</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DESCRIPTION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">QTY</code>.</p>
-                        <p><strong>Optional columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2023</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2024</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2025</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">3_YR_AVG</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SOURCE</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">PO_NUMBER</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DATE_RECEIVED</code>.</p>
+                        <p><strong>Optional columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOW_ALERT_QTY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2023</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2024</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2025</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">3_YR_AVG</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SOURCE</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">PO_NUMBER</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DATE_RECEIVED</code>.</p>
                     </div>
                     <div className="mt-6">
                         <label htmlFor="file-upload">CSV File</label>

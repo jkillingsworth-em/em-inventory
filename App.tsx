@@ -23,15 +23,15 @@ const initialLocations: Location[] = [
 ];
 
 const initialItems: InventoryItem[] = [
-    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', fy2023: 1000, fy2024: 1100, fy2025: 1200, threeYearAvg: 1100 },
-    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', fy2023: 500, fy2024: 550, fy2025: 600, threeYearAvg: 550 },
+    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', fy2023: 1000, fy2024: 1100, fy2025: 1200, threeYearAvg: 1100, lowAlertQuantity: 100 },
+    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', fy2023: 500, fy2024: 550, fy2025: 600, threeYearAvg: 550, lowAlertQuantity: 50 },
 ];
 
 const initialStock: Stock[] = [
     { itemId: '563-11-SAMP', locationId: 'wh-c', quantity: 900, source: 'OH' },
     { itemId: '563-11-SAMP', locationId: 'prod', quantity: 75, source: 'OH' },
     { itemId: '563-15-SAMP', locationId: 'wh-c', quantity: 450, source: 'OH' },
-    { itemId: '563-15-SAMP', locationId: 'prod', quantity: 50, source: 'OH' },
+    { itemId: '563-15-SAMP', locationId: 'prod', quantity: 25, source: 'OH' },
 ];
 
 // Initial colors for demo
@@ -259,18 +259,29 @@ const App: React.FC = () => {
         return report;
     }, [locations, stock]);
 
-    const handleGenerateReport = useCallback((options: { type: 'all' | 'category' | 'selected' | 'single', value?: string }) => {
+    const handleGenerateReport = useCallback((options: { type: 'all' | 'category' | 'selected' | 'single' | 'low-alert', value?: string }) => {
         let itemsToReport: InventoryItem[] = [];
         switch(options.type) {
             case 'all': itemsToReport = items; break;
             case 'category': itemsToReport = items.filter(i => (i.category || 'Uncategorized') === options.value); break;
             case 'selected': itemsToReport = items.filter(i => selectedItemIds.has(i.id)); break;
             case 'single': itemsToReport = items.filter(i => i.id === options.value); break;
+            case 'low-alert': {
+                const stockMap = new Map<string, number>();
+                stock.forEach(s => {
+                    stockMap.set(s.itemId, (stockMap.get(s.itemId) || 0) + s.quantity);
+                });
+                itemsToReport = items.filter(i => {
+                    const total = stockMap.get(i.id) || 0;
+                    return i.lowAlertQuantity !== undefined && total <= i.lowAlertQuantity;
+                });
+                break;
+            }
         }
         if (itemsToReport.length === 0) { alert("No items to report."); return; }
         setReportData(generateReportData(itemsToReport));
         setReportModalOpen(false);
-    }, [items, selectedItemIds, generateReportData]);
+    }, [items, stock, selectedItemIds, generateReportData]);
 
     const handleExportAllListings = useCallback(() => {
         if (items.length === 0) {
@@ -295,6 +306,7 @@ const App: React.FC = () => {
                         'DESCRIPTION': item.description,
                         'CATEGORY': item.category || '',
                         'SUB_CATEGORY': item.subCategory || '',
+                        'LOW_ALERT_QTY': item.lowAlertQuantity || '',
                         'FY2023': item.fy2023 || '',
                         'FY2024': item.fy2024 || '',
                         'FY2025': item.fy2025 || '',
@@ -314,6 +326,7 @@ const App: React.FC = () => {
                     'DESCRIPTION': item.description,
                     'CATEGORY': item.category || '',
                     'SUB_CATEGORY': item.subCategory || '',
+                    'LOW_ALERT_QTY': item.lowAlertQuantity || '',
                     'FY2023': item.fy2023 || '',
                     'FY2024': item.fy2024 || '',
                     'FY2025': item.fy2025 || '',
@@ -354,6 +367,18 @@ const App: React.FC = () => {
         document.body.removeChild(link);
     }, [items, stock, locations]);
 
+    const lowAlertItemCount = useMemo(() => {
+        const stockMap = new Map<string, number>();
+        stock.forEach(s => {
+            stockMap.set(s.itemId, (stockMap.get(s.itemId) || 0) + s.quantity);
+        });
+        return items.filter(i => {
+            const total = stockMap.get(i.id) || 0;
+            return i.lowAlertQuantity !== undefined && total <= i.lowAlertQuantity;
+        }).length;
+    }, [items, stock]);
+
+
     return (
         <div className="min-h-screen bg-gray-100 text-em-gray">
             <Header
@@ -393,7 +418,7 @@ const App: React.FC = () => {
             {isEditModalOpen && itemToEdit && <EditItemModal item={itemToEdit} stock={stock.filter(s => s.itemId === itemToEdit.id)} locations={locations} onClose={handleCloseEditModal} onEditItem={handleEditItem} currentCategoryColors={categoryColors} fieldToFocus={fieldToFocus} />}
             {isMoveModalOpen && itemToMove && <MoveStockModal item={itemToMove} locations={locations} stock={stock} onClose={() => setMoveModalOpen(false)} onMoveStock={handleMoveStock} />}
             {isImportModalOpen && <ImportDataModal onClose={() => setImportModalOpen(false)} onImport={handleImportData} />}
-            {isReportModalOpen && <GenerateReportModal onClose={() => setReportModalOpen(false)} onGenerate={handleGenerateReport} items={items} selectedItemCount={selectedItemIds.size}/>}
+            {isReportModalOpen && <GenerateReportModal onClose={() => setReportModalOpen(false)} onGenerate={handleGenerateReport} items={items} selectedItemCount={selectedItemIds.size} lowAlertItemCount={lowAlertItemCount}/>}
             {reportData && <ReportPreviewModal reportData={reportData} onClose={() => setReportData(null)}/>}
             {isBulkEditModalOpen && <BulkEditModal onClose={() => setBulkEditModalOpen(false)} onSaveChanges={handleBulkUpdate} selectedItemCount={selectedItemIds.size}/>}
         </div>

@@ -7,6 +7,7 @@ export interface InventoryItem {
     fy2023?: number;
     fy2024?: number;
     fy2025?: number;
+    lowAlertQuantity?: number;
 }
 
 export interface Location {

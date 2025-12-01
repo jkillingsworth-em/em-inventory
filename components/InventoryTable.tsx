@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, Location, Stock } from '../types';
 import { TrashIcon } from './icons/TrashIcon';
@@ -10,6 +11,7 @@ import { DocumentDuplicateIcon } from './icons/DocumentDuplicateIcon';
 import { PencilSquareIcon } from './icons/PencilSquareIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { SortIcon } from './icons/SortIcon';
+import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 
 interface InventoryTableProps {
     items: InventoryItem[];
@@ -30,6 +32,17 @@ interface InventoryTableProps {
 
 type SortKey = 'id' | 'description' | 'category' | 'quantityInView';
 type SortDirection = 'asc' | 'desc';
+
+type MappedItem = InventoryItem & {
+    quantityInView: number;
+    totalQuantity: number;
+    etr: string;
+    locationsWithStock: (Stock & { locationName: string })[];
+    category: string;
+    stockTooltip: string;
+    accentColor: string | undefined;
+    isLowStock: boolean;
+};
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ 
     items, locations, stock, onMoveClick, onDeleteClick, onDuplicateClick, onEditClick,
@@ -83,7 +96,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         return hierarchy;
     }, [items]);
 
-    const mappedItems = useMemo(() => {
+    const mappedItems: MappedItem[] = useMemo(() => {
         const locationMap = new Map(locations.map(loc => [loc.id, loc.name]));
         return items.map(item => {
             const allItemStock = stock.filter(s => s.itemId === item.id);
@@ -108,6 +121,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 ? `TOTAL: ${totalQuantity} | ETR: ${etr} | LOCATIONS: ${locationsWithStock.map(ls => `${ls.locationName}: ${ls.quantity}`).join(', ')}` 
                 : `TOTAL: 0 | ETR: ${etr} | NO STOCK`;
             
+            const isLowStock = item.lowAlertQuantity !== undefined && totalQuantity <= item.lowAlertQuantity;
+            
             return { 
                 ...item, 
                 quantityInView,
@@ -116,7 +131,8 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 locationsWithStock, 
                 category: item.category || 'UNCATEGORIZED', 
                 stockTooltip, 
-                accentColor: getItemColor(item) 
+                accentColor: getItemColor(item),
+                isLowStock
             };
         });
     }, [items, locations, stock, categoryColors, locationView]);
@@ -182,14 +198,14 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 if (!acc[key]) acc[key] = [];
                 acc[key].push(item);
                 return acc;
-            }, {} as Record<string, typeof sortedItems>);
+            }, {} as Record<string, MappedItem[]>);
         }
         return sortedItems;
     }, [sortedItems, isGrouped]);
 
     const allVisibleSelected = sortedItems.length > 0 && sortedItems.every(i => selectedItemIds.has(i.id));
 
-    const renderActionButtons = (item: any) => (
+    const renderActionButtons = (item: MappedItem) => (
         <div className="flex items-center space-x-1">
             <button onClick={() => onGenerateReportForItem(item.id)} className="btn-icon text-green-600 hover:text-green-800" title="REPORT"><DocumentChartBarIcon className="w-5 h-5" /></button>
             <button onClick={() => onDuplicateClick(item)} className="btn-icon text-purple-600 hover:text-purple-800" title="DUPLICATE"><DocumentDuplicateIcon className="w-5 h-5" /></button>
@@ -199,12 +215,15 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         </div>
     );
 
-    const renderMobileCard = (item: any) => (
-        <div key={item.id} className="mobile-card" title={item.stockTooltip}>
+    const renderMobileCard = (item: MappedItem) => (
+        <div key={item.id} className={`mobile-card ${item.isLowStock ? 'border-red-500 bg-red-50' : ''}`} title={item.stockTooltip}>
             <div className="mobile-card-header">
                 <div className="flex items-start gap-3"><input type="checkbox" className="mt-1 h-5 w-5 border-gray-300 rounded" style={{ accentColor: item.accentColor }} checked={selectedItemIds.has(item.id)} onChange={() => onSelectionChange(item.id)}/>
                     <div>
-                        <div className="text-lg font-bold text-gray-900">{item.id}</div>
+                        <div className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            {item.isLowStock && <span title={`LOW STOCK ALERT: ${item.totalQuantity} <= ${item.lowAlertQuantity}`}><ExclamationTriangleIcon className="w-5 h-5 text-red-600" /></span>}
+                            {item.id}
+                        </div>
                         <span onClick={() => onEditClick(item, 'category')} className="badge mt-1 cursor-pointer hover:bg-yellow-100" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'UNCATEGORIZED' ? 'NO CATEGORY' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span>
                     </div>
                 </div>
@@ -220,7 +239,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                             <p className="text-sm font-semibold text-em-dark-blue">{item.etr}</p>
                         </div>
                     </div>
-                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">NO STOCK RECORDED.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock: any, idx: number) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
+                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">NO STOCK RECORDED.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock, idx) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
                 </div>
             )}
             <div className="mobile-card-footer">
@@ -230,12 +249,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         </div>
     );
 
-    const renderTableRows = (itemsToRender: any[]) => itemsToRender.map((item) => (
+    const renderTableRows = (itemsToRender: MappedItem[]) => itemsToRender.map((item) => (
         <React.Fragment key={item.id}>
-            <tr className="border-b border-gray-200 last:border-0" title={item.stockTooltip}>
+            <tr className={`border-b border-gray-200 last:border-0 ${item.isLowStock ? 'bg-red-50 hover:bg-red-100' : ''}`} title={item.stockTooltip}>
                 <td className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded cursor-pointer" style={{ accentColor: item.accentColor }} checked={selectedItemIds.has(item.id)} onChange={() => onSelectionChange(item.id)}/></td>
                 <td className="w-12 text-center">{item.locationsWithStock.length > 0 && <button onClick={() => toggleRowExpansion(item.id)} className="text-gray-500 hover:text-gray-800 p-1">{expandedRows.has(item.id) ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}</button>}</td>
-                <td className="font-bold text-gray-900 text-lg">{item.id}</td>
+                <td className="font-bold text-gray-900 text-lg">
+                    <div className="flex items-center gap-2">
+                        {item.isLowStock && <span title={`LOW STOCK ALERT: ${item.totalQuantity} <= ${item.lowAlertQuantity}`}><ExclamationTriangleIcon className="w-5 h-5 text-red-600" /></span>}
+                        {item.id}
+                    </div>
+                </td>
                 <td onClick={() => onEditClick(item, 'description')} className="text-gray-700 cursor-pointer hover:bg-yellow-50 rounded-md">{item.description}</td>
                 <td onClick={() => onEditClick(item, 'category')} className="cursor-pointer hover:bg-yellow-50 rounded-md"><span className="badge" style={{ borderColor: item.accentColor, borderWidth: item.accentColor ? '2px' : '0', borderStyle: 'solid' }}>{item.category === 'UNCATEGORIZED' ? 'UNCATEGORIZED' : item.category}{item.subCategory ? ` / ${item.subCategory}` : ''}</span></td>
                 <td onClick={() => onEditClick(item, 'quantity')} className="text-gray-900 font-bold text-lg cursor-pointer hover:bg-yellow-50 rounded-md">{item.quantityInView}</td>
@@ -249,7 +273,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                         <span className="text-base font-bold text-em-dark-blue bg-white px-3 py-1 rounded-md border border-gray-200 shadow-sm">{item.etr}</span>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock: any, index: number) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">QTY: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>DETAIL:</strong> {locStock.subLocationDetail}</p>}<p><strong>SOURCE:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>DATE:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock, index) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">QTY: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>DETAIL:</strong> {locStock.subLocationDetail}</p>}<p><strong>SOURCE:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>DATE:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
         </React.Fragment>
     ));
 
@@ -304,13 +328,16 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             {filteredItems.length === 0 && <div className="text-center py-12 px-4 bg-white rounded-lg shadow-sm border border-gray-200 no-items-message"><MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" /><h3>NO ITEMS FOUND</h3><p className="mt-1 text-gray-500">TRY ADJUSTING YOUR SEARCH OR FILTERS.</p></div>}
             
             <div className="md:hidden">
-                {(isGrouped ? Object.entries(displayData as Record<string, any[]>).sort(([catA], [catB]) => catA.localeCompare(catB)) : []).map(([category, itemsInCategory]) => (
-                    <div key={category} className="mb-6">
-                         <div className="bg-gray-100 px-4 py-2 rounded mb-3 text-sm font-bold text-gray-800 uppercase tracking-wide border-l-4 border-em-red">{category}</div>
-                        {itemsInCategory.map(renderMobileCard)}
-                    </div>
-                ))}
-                {!isGrouped && (displayData as any[]).map(renderMobileCard)}
+                {isGrouped ? (
+                    Object.entries(displayData as Record<string, MappedItem[]>).sort(([catA], [catB]) => catA.localeCompare(catB)).map(([category, itemsInCategory]) => (
+                        <div key={category} className="mb-6">
+                            <div className="bg-gray-100 px-4 py-2 rounded mb-3 text-sm font-bold text-gray-800 uppercase tracking-wide border-l-4 border-em-red">{category}</div>
+                            {itemsInCategory.map(renderMobileCard)}
+                        </div>
+                    ))
+                ) : (
+                    (displayData as MappedItem[]).map(renderMobileCard)
+                )}
             </div>
 
             <div className="hidden md:block inventory-table-container">
@@ -318,7 +345,6 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     <thead><tr>
                         <th scope="col" className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded" checked={allVisibleSelected} onChange={() => onSelectAll(sortedItems.map(i => i.id), !allVisibleSelected)} title="SELECT ALL" /></th>
                         <th scope="col" className="w-12 text-center"></th>
-                        {/* FIX: Added children to SortableHeader components */}
                         <SortableHeader sortValue="id" title="UNIQUE IDENTIFIER FOR THE ITEM (SKU)">ITEM CODE</SortableHeader>
                         <SortableHeader sortValue="description" title="A BRIEF DESCRIPTION OF THE ITEM">DESCRIPTION</SortableHeader>
                         <SortableHeader sortValue="category" title="THE PRIMARY CATEGORY AND OPTIONAL SUB-CATEGORY">CATEGORIES</SortableHeader>
@@ -326,12 +352,16 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                         <th scope="col" title="ACTIONS TO PERFORM ON A SINGLE ITEM">ACTIONS</th>
                     </tr></thead>
                     <tbody className="divide-y divide-gray-200">
-                        {isGrouped ? Object.entries(displayData as Record<string, any[]>).sort(([catA], [catB]) => catA.localeCompare(catB)).map(([category, itemsInCategory]) => (
-                            <React.Fragment key={category}>
-                                <tr className="bg-gray-100"><td colSpan={7} className="px-6 py-3 text-lg font-bold text-gray-800 border-l-4 border-em-red">{category}</td></tr>
-                                {renderTableRows(itemsInCategory)}
-                            </React.Fragment>
-                        )) : renderTableRows(displayData as any[])}
+                        {isGrouped ? (
+                            Object.entries(displayData as Record<string, MappedItem[]>).sort(([catA], [catB]) => catA.localeCompare(catB)).map(([category, itemsInCategory]) => (
+                                <React.Fragment key={category}>
+                                    <tr className="bg-gray-100"><td colSpan={7} className="px-6 py-3 text-lg font-bold text-gray-800 border-l-4 border-em-red">{category}</td></tr>
+                                    {renderTableRows(itemsInCategory)}
+                                </React.Fragment>
+                            ))
+                        ) : (
+                            renderTableRows(displayData as MappedItem[])
+                        )}
                     </tbody>
                 </table>
             </div>
