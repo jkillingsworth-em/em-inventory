@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { InventoryItem, Location, Stock } from '../types';
 import { TrashIcon } from './icons/TrashIcon';
@@ -317,6 +318,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     <thead><tr>
                         <th scope="col" className="w-12 text-center"><input type="checkbox" className="h-5 w-5 border-gray-300 rounded" checked={allVisibleSelected} onChange={() => onSelectAll(sortedItems.map(i => i.id), !allVisibleSelected)} title="SELECT ALL" /></th>
                         <th scope="col" className="w-12 text-center"></th>
+                        {/* FIX: Added children to SortableHeader components */}
                         <SortableHeader sortValue="id" title="UNIQUE IDENTIFIER FOR THE ITEM (SKU)">ITEM CODE</SortableHeader>
                         <SortableHeader sortValue="description" title="A BRIEF DESCRIPTION OF THE ITEM">DESCRIPTION</SortableHeader>
                         <SortableHeader sortValue="category" title="THE PRIMARY CATEGORY AND OPTIONAL SUB-CATEGORY">CATEGORIES</SortableHeader>

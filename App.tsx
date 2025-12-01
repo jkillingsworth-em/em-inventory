@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useMemo } from 'react';
 import { InventoryItem, Location, Stock, ReportDataItem } from './types';
 import Header from './components/Header';
@@ -22,8 +23,8 @@ const initialLocations: Location[] = [
 ];
 
 const initialItems: InventoryItem[] = [
-    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', oneYearAvg: 1200, threeYearAvg: 1100 },
-    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', oneYearAvg: 500, threeYearAvg: 550 },
+    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', fy2023: 1000, fy2024: 1100, fy2025: 1200, threeYearAvg: 1100 },
+    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', fy2023: 500, fy2024: 550, fy2025: 600, threeYearAvg: 550 },
 ];
 
 const initialStock: Stock[] = [
@@ -294,7 +295,9 @@ const App: React.FC = () => {
                         'DESCRIPTION': item.description,
                         'CATEGORY': item.category || '',
                         'SUB_CATEGORY': item.subCategory || '',
-                        '1_YR_AVG': item.oneYearAvg || 0,
+                        'FY2023': item.fy2023 || '',
+                        'FY2024': item.fy2024 || '',
+                        'FY2025': item.fy2025 || '',
                         '3_YR_AVG': item.threeYearAvg || 0,
                         'ETR': etr,
                         'LOCATION': locationMap.get(s.locationId) || s.locationId,
@@ -311,7 +314,9 @@ const App: React.FC = () => {
                     'DESCRIPTION': item.description,
                     'CATEGORY': item.category || '',
                     'SUB_CATEGORY': item.subCategory || '',
-                    '1_YR_AVG': item.oneYearAvg || 0,
+                    'FY2023': item.fy2023 || '',
+                    'FY2024': item.fy2024 || '',
+                    'FY2025': item.fy2025 || '',
                     '3_YR_AVG': item.threeYearAvg || 0,
                     'ETR': etr,
                     'LOCATION': '',
@@ -324,7 +329,7 @@ const App: React.FC = () => {
             }
         });
         
-        const formatCsvField = (field: any) => {
+        const formatCsvField = (field: unknown) => {
             const str = String(field ?? '');
             if (str.includes(',') || str.includes('"') || str.includes('\n')) {
                 return `"${str.replace(/"/g, '""')}"`;

@@ -16,16 +16,20 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, o
     // Refs for focusing
     const descriptionRef = useRef<HTMLInputElement>(null);
     const categoryRef = useRef<HTMLInputElement>(null);
-    const oneYearAvgRef = useRef<HTMLInputElement>(null);
     const quantityInputRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
     
     // Item details state
     const [description, setDescription] = useState(item.description);
     const [category, setCategory] = useState(item.category || '');
     const [subCategory, setSubCategory] = useState(item.subCategory || '');
-    const [oneYearAvg, setOneYearAvg] = useState(item.oneYearAvg || 0);
-    const [threeYearAvg, setThreeYearAvg] = useState(item.threeYearAvg || 0);
     
+    // Forecasting fields
+    const [fy2023, setFy2023] = useState(String(item.fy2023 ?? ''));
+    const [fy2024, setFy2024] = useState(String(item.fy2024 ?? ''));
+    const [fy2025, setFy2025] = useState(String(item.fy2025 ?? ''));
+    const [threeYearAvg, setThreeYearAvg] = useState(item.threeYearAvg || 0);
+    const [isThreeYearAvgManual, setIsThreeYearAvgManual] = useState(true);
+
     // Color state
     const [categoryColor, setCategoryColor] = useState(
         (item.category && currentCategoryColors[item.category]) || '#000000'
@@ -50,6 +54,21 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, o
         }
         return 'N/A';
     }, [totalQuantity, threeYearAvg]);
+
+    useEffect(() => {
+        const fy2023Num = parseInt(fy2023, 10);
+        const fy2024Num = parseInt(fy2024, 10);
+        const fy2025Num = parseInt(fy2025, 10);
+
+        if (fy2023.trim() !== '' && !isNaN(fy2023Num) &&
+            fy2024.trim() !== '' && !isNaN(fy2024Num) &&
+            fy2025.trim() !== '' && !isNaN(fy2025Num)) {
+            setThreeYearAvg(Math.round((fy2023Num + fy2024Num + fy2025Num) / 3));
+            setIsThreeYearAvgManual(false);
+        } else {
+            setIsThreeYearAvgManual(true);
+        }
+    }, [fy2023, fy2024, fy2025]);
 
     useEffect(() => {
         if (category && currentCategoryColors[category]) {
@@ -98,13 +117,19 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, o
         if (category.trim()) colorsToSave.category = categoryColor;
         if (subCategory.trim()) colorsToSave.subCategory = subCategoryColor;
 
+        const fy2023Num = parseInt(fy2023, 10);
+        const fy2024Num = parseInt(fy2024, 10);
+        const fy2025Num = parseInt(fy2025, 10);
+
         onEditItem(
             {
                 ...item,
                 description: description.trim(),
                 category: category.trim(),
                 subCategory: subCategory.trim(),
-                oneYearAvg: oneYearAvg > 0 ? oneYearAvg : undefined,
+                fy2023: !isNaN(fy2023Num) ? fy2023Num : undefined,
+                fy2024: !isNaN(fy2024Num) ? fy2024Num : undefined,
+                fy2025: !isNaN(fy2025Num) ? fy2025Num : undefined,
                 threeYearAvg: threeYearAvg > 0 ? threeYearAvg : undefined
             },
             localStock,
@@ -152,19 +177,27 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, o
                             
                             <div className="form-section">
                                 <h3>Usage & Forecasting</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
                                     <div>
-                                        <label htmlFor="oneYearAvg">1-Year Avg Usage</label>
-                                        <input ref={oneYearAvgRef} type="number" id="oneYearAvg" value={oneYearAvg} onChange={(e) => setOneYearAvg(parseInt(e.target.value) || 0)} className="form-control mt-1" />
+                                        <label htmlFor="fy2023">FY2023 USAGE</label>
+                                        <input type="number" id="fy2023" value={fy2023} onChange={(e) => setFy2023(e.target.value)} className="form-control mt-1" />
                                     </div>
                                     <div>
-                                        <label htmlFor="threeYearAvg">3-Year Avg Usage</label>
-                                        <input type="number" id="threeYearAvg" value={threeYearAvg} onChange={(e) => setThreeYearAvg(parseInt(e.target.value) || 0)} className="form-control mt-1" />
+                                        <label htmlFor="fy2024">FY2024 USAGE</label>
+                                        <input type="number" id="fy2024" value={fy2024} onChange={(e) => setFy2024(e.target.value)} className="form-control mt-1" />
                                     </div>
-                                    <div className="info-box text-center">
-                                        <label>Est. Time Remaining</label>
-                                        <p className="text-xl font-bold text-em-dark-blue mt-1">{etr}</p>
+                                    <div>
+                                        <label htmlFor="fy2025">FY2025 USAGE</label>
+                                        <input type="number" id="fy2025" value={fy2025} onChange={(e) => setFy2025(e.target.value)} className="form-control mt-1" />
                                     </div>
+                                    <div>
+                                        <label htmlFor="threeYearAvg">3-YEAR AVG USAGE</label>
+                                        <input type="number" id="threeYearAvg" value={threeYearAvg || ''} onChange={(e) => setThreeYearAvg(parseInt(e.target.value) || 0)} className="form-control mt-1 disabled:bg-gray-200" disabled={!isThreeYearAvgManual} />
+                                    </div>
+                                </div>
+                                <div className="info-box text-center mt-4">
+                                    <label>Est. Time Remaining</label>
+                                    <p className="text-xl font-bold text-em-dark-blue mt-1">{etr}</p>
                                 </div>
                             </div>
                             

@@ -3,8 +3,10 @@ export interface InventoryItem {
     description: string;
     category?: string;
     subCategory?: string;
-    oneYearAvg?: number;
     threeYearAvg?: number;
+    fy2023?: number;
+    fy2024?: number;
+    fy2025?: number;
 }
 
 export interface Location {
