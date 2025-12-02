@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { InventoryItem, Location, Stock } from '../types';
+import { InventoryItem, Stock } from '../types';
 import { XMarkIcon } from './icons/XMarkIcon';
 
 interface ImportDataModalProps {
     onClose: () => void;
-    onImport: (items: InventoryItem[], stock: Stock[], locations: Omit<Location, 'id'>[]) => void;
+    onImport: (items: InventoryItem[], stock: Stock[]) => void;
 }
 
 const parseCsvLine = (line: string): string[] => {
@@ -53,8 +53,8 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
         reader.onload = (e) => {
             try {
                 const text = e.target?.result as string;
-                const { items, stock, locations } = parseCSV(text);
-                onImport(items, stock, locations);
+                const { items, stock } = parseCSV(text);
+                onImport(items, stock);
             } catch (err: any) {
                 setError(err.message || 'Failed to parse CSV file.');
                 setIsProcessing(false);
@@ -67,7 +67,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
         reader.readAsText(file);
     };
 
-    const parseCSV = (csvText: string): { items: InventoryItem[], stock: Stock[], locations: Omit<Location, 'id'>[] } => {
+    const parseCSV = (csvText: string): { items: InventoryItem[], stock: Stock[] } => {
         const lines = csvText.split(/\r\n|\n/).filter(line => line.trim() !== '');
         if (lines.length < 2) throw new Error("CSV file must have a header and at least one data row.");
         
@@ -88,15 +88,15 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
             dateRcvd: header.indexOf('DATE_RECEIVED'),
             category: header.indexOf('CATEGORY'),
             subCategory: header.indexOf('SUB_CATEGORY'),
-            fy2023: header.indexOf('FY2023'),
-            fy2024: header.indexOf('FY2024'),
-            fy2025: header.indexOf('FY2025'),
-            threeYearAvg: header.indexOf('3_YR_AVG'),
             lowAlertQty: header.indexOf('LOW_ALERT_QTY'),
         };
 
+        const usageYearHeaders = [2021, 2022, 2023, 2024, 2025].map(year => ({
+            year,
+            index: header.indexOf(`USAGE_${year}`)
+        }));
+
         const itemsMap = new Map<string, InventoryItem>();
-        const locationsSet = new Set<string>();
         const stockList: Stock[] = [];
 
         for (let i = 1; i < lines.length; i++) {
@@ -112,12 +112,18 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
             }
             
             if (!itemsMap.has(id)) {
+                const priorUsage: { year: number; usage: number }[] = [];
+                usageYearHeaders.forEach(({ year, index }) => {
+                    if (index > -1 && values[index]?.trim()) {
+                        const usage = parseInt(values[index].trim(), 10);
+                        if (!isNaN(usage)) {
+                            priorUsage.push({ year, usage });
+                        }
+                    }
+                });
+
                 const category = h.category > -1 ? values[h.category]?.trim() : undefined;
                 const subCategory = h.subCategory > -1 ? values[h.subCategory]?.trim() : undefined;
-                const fy2023 = h.fy2023 > -1 ? parseInt(values[h.fy2023]?.trim(), 10) : undefined;
-                const fy2024 = h.fy2024 > -1 ? parseInt(values[h.fy2024]?.trim(), 10) : undefined;
-                const fy2025 = h.fy2025 > -1 ? parseInt(values[h.fy2025]?.trim(), 10) : undefined;
-                const threeYearAvg = h.threeYearAvg > -1 ? parseInt(values[h.threeYearAvg]?.trim(), 10) : undefined;
                 const lowAlertQuantity = h.lowAlertQty > -1 ? parseInt(values[h.lowAlertQty]?.trim(), 10) : undefined;
                 
                 itemsMap.set(id, { 
@@ -125,21 +131,16 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                     description, 
                     category, 
                     subCategory, 
-                    fy2023,
-                    fy2024,
-                    fy2025,
-                    threeYearAvg,
-                    lowAlertQuantity
+                    priorUsage: priorUsage.length > 0 ? priorUsage : undefined,
+                    lowAlertQuantity: !isNaN(lowAlertQuantity as number) ? lowAlertQuantity : undefined
                 });
             }
             
-            locationsSet.add(locationName);
-
             const source = values[h.source]?.trim().toUpperCase() === 'PO' ? 'PO' : 'OH';
 
             stockList.push({
                 itemId: id,
-                locationId: locationName, // Temp store name, map to ID later
+                locationId: locationName, // Temp store name, map to ID later in App.tsx
                 quantity,
                 subLocationDetail: h.subLoc > -1 ? values[h.subLoc]?.trim() : undefined,
                 source,
@@ -149,9 +150,8 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
         }
         
         const items = Array.from(itemsMap.values());
-        const locations = Array.from(locationsSet).map(name => ({ name }));
         
-        return { items, stock: stockList, locations };
+        return { items, stock: stockList };
     };
 
     return (
@@ -167,7 +167,7 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
                     <div className="text-sm text-gray-600 space-y-2">
                         <p>Select a CSV file to import inventory data. The data will be added to your existing inventory.</p>
                         <p><strong>Required columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">ID</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DESCRIPTION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">QTY</code>.</p>
-                        <p><strong>Optional columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOW_ALERT_QTY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2023</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2024</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">FY2025</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">3_YR_AVG</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SOURCE</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">PO_NUMBER</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DATE_RECEIVED</code>.</p>
+                        <p><strong>Optional columns:</strong> <code className="bg-gray-200 text-gray-800 px-1 rounded">CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_CATEGORY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">LOW_ALERT_QTY</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">USAGE_2021</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">USAGE_2022</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">USAGE_2023</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">USAGE_2024</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">USAGE_2025</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SUB_LOCATION</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">SOURCE</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">PO_NUMBER</code>, <code className="bg-gray-200 text-gray-800 px-1 rounded">DATE_RECEIVED</code>.</p>
                     </div>
                     <div className="mt-6">
                         <label htmlFor="file-upload">CSV File</label>

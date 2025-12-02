@@ -20,6 +20,14 @@ interface StockEntry {
     subLocationDetail: string;
 }
 
+interface PriorUsageEntry {
+    key: number;
+    year: string;
+    usage: string;
+}
+
+const ALL_YEARS = [2025, 2024, 2023, 2022, 2021];
+
 const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locations, existingItemIds, itemToDuplicate, currentCategoryColors }) => {
     const [id, setId] = useState('');
     const [description, setDescription] = useState(itemToDuplicate?.description || '');
@@ -32,11 +40,13 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
     const [subCategoryColor, setSubCategoryColor] = useState('#000000');
 
     // Forecasting fields
-    const [fy2023, setFy2023] = useState(String(itemToDuplicate?.fy2023 ?? ''));
-    const [fy2024, setFy2024] = useState(String(itemToDuplicate?.fy2024 ?? ''));
-    const [fy2025, setFy2025] = useState(String(itemToDuplicate?.fy2025 ?? ''));
-    const [threeYearAvg, setThreeYearAvg] = useState(itemToDuplicate?.threeYearAvg || 0);
-    const [isThreeYearAvgManual, setIsThreeYearAvgManual] = useState(true);
+    const [priorUsage, setPriorUsage] = useState<PriorUsageEntry[]>(
+        () => itemToDuplicate?.priorUsage?.map((u, i) => ({
+            key: Date.now() + i,
+            year: String(u.year),
+            usage: String(u.usage)
+        })) || []
+    );
     const [lowAlertQuantity, setLowAlertQuantity] = useState(String(itemToDuplicate?.lowAlertQuantity ?? ''));
 
     const [idError, setIdError] = useState('');
@@ -72,21 +82,30 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
             setStockEntries(prev => prev.map(entry => ({ ...entry, locationId: inspectionLocationId })));
         }
     }, [source, inspectionRequired, inspectionLocationId]);
+    
+    const averageUsage = useMemo(() => {
+        if (priorUsage.length === 0) return 0;
+        const validEntries = priorUsage
+            .map(u => parseInt(u.usage, 10))
+            .filter(u => !isNaN(u));
+        if (validEntries.length === 0) return 0;
+        const total = validEntries.reduce((sum, u) => sum + u, 0);
+        return Math.round(total / validEntries.length);
+    }, [priorUsage]);
 
-    useEffect(() => {
-        const fy2023Num = parseInt(fy2023, 10);
-        const fy2024Num = parseInt(fy2024, 10);
-        const fy2025Num = parseInt(fy2025, 10);
-
-        if (fy2023.trim() !== '' && !isNaN(fy2023Num) &&
-            fy2024.trim() !== '' && !isNaN(fy2024Num) &&
-            fy2025.trim() !== '' && !isNaN(fy2025Num)) {
-            setThreeYearAvg(Math.round((fy2023Num + fy2024Num + fy2025Num) / 3));
-            setIsThreeYearAvgManual(false);
-        } else {
-            setIsThreeYearAvgManual(true);
+    const handleAddUsage = () => {
+        if (priorUsage.length < 3) {
+            setPriorUsage(prev => [...prev, { key: Date.now(), year: '', usage: '' }]);
         }
-    }, [fy2023, fy2024, fy2025]);
+    };
+
+    const handleRemoveUsage = (key: number) => {
+        setPriorUsage(prev => prev.filter(u => u.key !== key));
+    };
+
+    const handleUsageChange = (key: number, field: 'year' | 'usage', value: string) => {
+        setPriorUsage(prev => prev.map(u => u.key === key ? { ...u, [field]: value } : u));
+    };
 
 
     const handleAddStockEntry = () => {
@@ -137,9 +156,10 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
         if (category.trim()) colorsToSave.category = categoryColor;
         if (subCategory.trim()) colorsToSave.subCategory = subCategoryColor;
 
-        const fy2023Num = parseInt(fy2023, 10);
-        const fy2024Num = parseInt(fy2024, 10);
-        const fy2025Num = parseInt(fy2025, 10);
+        const formattedUsage = priorUsage
+            .map(u => ({ year: parseInt(u.year, 10), usage: parseInt(u.usage, 10) }))
+            .filter(u => !isNaN(u.year) && u.year > 0 && !isNaN(u.usage));
+
         const lowAlertNum = parseInt(lowAlertQuantity, 10);
 
         onAddItem(
@@ -148,10 +168,7 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                 description: description.trim(), 
                 category: category.trim(), 
                 subCategory: subCategory.trim(),
-                fy2023: !isNaN(fy2023Num) ? fy2023Num : undefined,
-                fy2024: !isNaN(fy2024Num) ? fy2024Num : undefined,
-                fy2025: !isNaN(fy2025Num) ? fy2025Num : undefined,
-                threeYearAvg: threeYearAvg > 0 ? threeYearAvg : undefined,
+                priorUsage: formattedUsage.length > 0 ? formattedUsage : undefined,
                 lowAlertQuantity: !isNaN(lowAlertNum) ? lowAlertNum : undefined
             }, 
             finalStockEntries,
@@ -207,32 +224,6 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                                     </div>
                                 </div>
                             </div>
-
-                            <div className="form-section">
-                                <h3>USAGE & FORECASTING</h3>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mt-2">
-                                     <div>
-                                        <label htmlFor="fy2023">FY2023 USAGE</label>
-                                        <input type="number" id="fy2023" value={fy2023} onChange={(e) => setFy2023(e.target.value)} className="form-control mt-1" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="fy2024">FY2024 USAGE</label>
-                                        <input type="number" id="fy2024" value={fy2024} onChange={(e) => setFy2024(e.target.value)} className="form-control mt-1" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="fy2025">FY2025 USAGE</label>
-                                        <input type="number" id="fy2025" value={fy2025} onChange={(e) => setFy2025(e.target.value)} className="form-control mt-1" />
-                                    </div>
-                                    <div>
-                                        <label htmlFor="threeYearAvg">3-YEAR AVG</label>
-                                        <input type="number" id="threeYearAvg" value={threeYearAvg || ''} onChange={(e) => setThreeYearAvg(parseInt(e.target.value) || 0)} className="form-control mt-1 disabled:bg-gray-200" disabled={!isThreeYearAvgManual} />
-                                    </div>
-                                     <div>
-                                        <label htmlFor="lowAlertQuantity">LOW ALERT QTY</label>
-                                        <input type="number" id="lowAlertQuantity" value={lowAlertQuantity} onChange={(e) => setLowAlertQuantity(e.target.value)} className="form-control mt-1" />
-                                    </div>
-                                </div>
-                            </div>
                             
                             {/* Source Selection */}
                             <div className="form-section">
@@ -277,8 +268,8 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                                             </div>
                                             {selectedLocation?.subLocationPrompt && !(source === 'PO' && inspectionRequired) && (
                                                 <div className="sm:col-span-3 md:col-span-1">
-                                                    <label htmlFor={`sublocation-${entry.key}`}>{selectedLocation.subLocationPrompt}</label>
-                                                    <input type="text" id={`sublocation-${entry.key}`} value={entry.subLocationDetail} onChange={e => handleStockEntryChange(entry.key, 'subLocationDetail', e.target.value)} className="form-control mt-1" />
+                                                    <label htmlFor={`sublocation-${entry.key}`}>DETAIL</label>
+                                                    <input type="text" id={`sublocation-${entry.key}`} value={entry.subLocationDetail} onChange={e => handleStockEntryChange(entry.key, 'subLocationDetail', e.target.value)} className="form-control mt-1" placeholder={selectedLocation.subLocationPrompt} />
                                                 </div>
                                             )}
                                              <div className="sm:col-span-2 md:col-span-1">
@@ -299,6 +290,53 @@ const AddItemModal: React.FC<AddItemModalProps> = ({ onClose, onAddItem, locatio
                                     <PlusIcon className="w-4 h-4 mr-1" />
                                     Add Another Location
                                 </button>
+                            </div>
+                            
+                             <div className="form-section">
+                                <h3>USAGE & FORECASTING</h3>
+                                <div className="space-y-3 mt-2">
+                                    {priorUsage.map((entry) => {
+                                        const selectedYears = new Set(priorUsage.filter(p => p.key !== entry.key).map(p => p.year));
+                                        const availableYears = ALL_YEARS.filter(y => !selectedYears.has(String(y)));
+                                        return (
+                                            <div key={entry.key} className="info-box grid grid-cols-3 gap-3 items-end">
+                                                <div>
+                                                    <label htmlFor={`usage-year-${entry.key}`}>YEAR</label>
+                                                    <select id={`usage-year-${entry.key}`} value={entry.year} onChange={e => handleUsageChange(entry.key, 'year', e.target.value)} className="form-control mt-1">
+                                                        <option value="" disabled>SELECT...</option>
+                                                        {entry.year && <option value={entry.year}>{entry.year}</option>}
+                                                        {availableYears.map(y => <option key={y} value={y}>{y}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label htmlFor={`usage-value-${entry.key}`}>USAGE</label>
+                                                    <input type="number" id={`usage-value-${entry.key}`} value={entry.usage} onChange={e => handleUsageChange(entry.key, 'usage', e.target.value)} className="form-control mt-1" />
+                                                </div>
+                                                <div className="text-right">
+                                                    <button type="button" onClick={() => handleRemoveUsage(entry.key)} className="text-red-600 hover:text-red-800 p-2" title="Remove Year">
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    {priorUsage.length < 3 && (
+                                        <button type="button" onClick={handleAddUsage} className="flex items-center text-sm font-medium text-em-red hover:text-red-800">
+                                            <PlusIcon className="w-4 h-4 mr-1" />
+                                            Add Usage Year
+                                        </button>
+                                    )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                    <div>
+                                        <label htmlFor="avgUsage">CALCULATED AVG USAGE</label>
+                                        <input type="number" id="avgUsage" value={averageUsage || ''} readOnly className="form-control mt-1 bg-gray-100 cursor-not-allowed" />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="lowAlertQuantity">LOW ALERT QTY</label>
+                                        <input type="number" id="lowAlertQuantity" value={lowAlertQuantity} onChange={(e) => setLowAlertQuantity(e.target.value)} className="form-control mt-1" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -3,10 +3,7 @@ export interface InventoryItem {
     description: string;
     category?: string;
     subCategory?: string;
-    threeYearAvg?: number;
-    fy2023?: number;
-    fy2024?: number;
-    fy2025?: number;
+    priorUsage?: { year: number; usage: number }[];
     lowAlertQuantity?: number;
 }
 

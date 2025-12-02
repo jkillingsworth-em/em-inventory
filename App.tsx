@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { InventoryItem, Location, Stock, ReportDataItem } from './types';
 import Header from './components/Header';
@@ -10,11 +9,11 @@ import ImportDataModal from './components/ImportDataModal';
 import GenerateReportModal from './components/GenerateReportModal';
 import ReportPreviewModal from './components/ReportPreviewModal';
 import BulkEditModal from './components/BulkEditModal';
-import { useHistoryState } from './hooks/useHistoryState';
-import LocationTabs from './components/LocationTabs';
+import NavigationView from './components/NavigationView';
+import { MagnifyingGlassIcon } from './components/icons/MagnifyingGlassIcon';
 
-// New location data
-const initialLocations: Location[] = [
+// Location data is now a static constant.
+const locations: Location[] = [
     { id: 'wh-j', name: 'WH-J', subLocationPrompt: 'SHELF or RACK' },
     { id: 'wh-c', name: 'WH-C' },
     { id: 'wh-k', name: 'WH-K' },
@@ -23,8 +22,8 @@ const initialLocations: Location[] = [
 ];
 
 const initialItems: InventoryItem[] = [
-    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', fy2023: 1000, fy2024: 1100, fy2025: 1200, threeYearAvg: 1100, lowAlertQuantity: 100 },
-    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', fy2023: 500, fy2024: 550, fy2025: 600, threeYearAvg: 550, lowAlertQuantity: 50 },
+    { id: '563-11-SAMP', description: '11" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'RED', priorUsage: [{year: 2023, usage: 1000}, {year: 2024, usage: 1100}, {year: 2025, usage: 1200}], lowAlertQuantity: 100 },
+    { id: '563-15-SAMP', description: '15" SAMPLE', category: 'OUTDOOR LED BOARD', subCategory: 'AMBER', priorUsage: [{year: 2023, usage: 500}, {year: 2024, usage: 550}, {year: 2025, usage: 600}], lowAlertQuantity: 50 },
 ];
 
 const initialStock: Stock[] = [
@@ -42,9 +41,17 @@ const initialColors: Record<string, string> = {
     'BLUE': '#3B82F6'
 };
 
+const calculateAverageUsage = (priorUsage?: { year: number; usage: number }[]): number => {
+    if (!priorUsage || priorUsage.length === 0) {
+        return 0;
+    }
+    const totalUsage = priorUsage.reduce((sum, entry) => sum + entry.usage, 0);
+    return totalUsage / priorUsage.length;
+};
+
+
 const App: React.FC = () => {
-    // UI State (not part of undo/redo history)
-    const [locations] = useState<Location[]>(initialLocations);
+    // UI State
     const [isAddItemModalOpen, setAddItemModalOpen] = useState(false);
     const [isEditModalOpen, setEditModalOpen] = useState(false);
     const [isMoveModalOpen, setMoveModalOpen] = useState(false);
@@ -57,11 +64,13 @@ const App: React.FC = () => {
     const [itemToDuplicate, setItemToDuplicate] = useState<InventoryItem | null>(null);
     const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
     const [reportData, setReportData] = useState<ReportDataItem[] | null>(null);
-    const [selectedLocationView, setSelectedLocationView] = useState('all');
     const [fieldToFocus, setFieldToFocus] = useState<string | null>(null);
+    const [currentView, setCurrentView] = useState<'all' | 'categories' | 'locations'>('all');
+    const [isSearchVisible, setIsSearchVisible] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
-    // History State (for undo/redo)
-    const [appState, setAppState, undo, redo, canUndo, canRedo] = useHistoryState({
+    // Main Application State
+    const [appState, setAppState] = useState({
         items: initialItems,
         stock: initialStock,
         categoryColors: initialColors,
@@ -180,33 +189,54 @@ const App: React.FC = () => {
         setMoveModalOpen(false);
     }, [setAppState]);
 
-    const handleImportData = useCallback((importedItems: InventoryItem[], importedStock: Stock[], importedLocations: Omit<Location, 'id'>[]) => {
+    const handleImportData = useCallback((importedItems: InventoryItem[], importedStock: Stock[]) => {
+      const locationNameToId = new Map(locations.map(l => [l.name.toUpperCase(), l.id]));
+      const skippedStockEntries: { locationName: string, itemId: string }[] = [];
+
+      const validImportedStock = importedStock.map(impS => {
+        // In the import parser, impS.locationId temporarily holds the location name. We map it to a real ID.
+        const locationId = locationNameToId.get(String(impS.locationId).toUpperCase());
+        if (!locationId) {
+            skippedStockEntries.push({ locationName: String(impS.locationId), itemId: impS.itemId });
+            return null;
+        }
+        return { ...impS, locationId };
+      }).filter((s): s is Stock => s !== null);
+
       setAppState(prev => {
+        // 1. Merge Items: Update existing items or add new ones.
         const itemMap = new Map(prev.items.map(item => [item.id, item]));
         importedItems.forEach(item => {
             const existingItem = itemMap.get(item.id);
-            const mergedItem = { ...existingItem, ...item };
+            const mergedItem = {
+                ...existingItem,
+                ...item,
+                priorUsage: (item.priorUsage && item.priorUsage.length > 0) ? item.priorUsage : existingItem?.priorUsage
+            };
             itemMap.set(item.id, mergedItem);
         });
         const newItems = Array.from(itemMap.values());
 
-        const locationNameToId = new Map(locations.map(l => [l.name, l.id]));
+        // 2. Handle Stock: Replace stock for imported items, keeping stock for non-imported items.
         const importedItemIds = new Set(importedItems.map(i => i.id));
         const stockToKeep = prev.stock.filter(s => !importedItemIds.has(s.itemId));
-        const newStockFromImport = importedStock
-            .map(impS => {
-                const locationId = locationNameToId.get(impS.locationId);
-                return locationId ? { ...impS, locationId } : null;
-            })
-            .filter((s): s is Stock => s !== null);
-        const newStock = [...stockToKeep, ...newStockFromImport];
+        const newStock = [...stockToKeep, ...validImportedStock];
 
         return { ...prev, items: newItems, stock: newStock };
       });
   
       setImportModalOpen(false);
-      alert('Data imported successfully! Existing data for imported items has been overwritten.');
-    }, [locations, setAppState]);
+      
+      if (skippedStockEntries.length > 0) {
+          const skippedSummary = skippedStockEntries
+              .slice(0, 5) // Show first 5 examples
+              .map(s => `Item '${s.itemId}' for location '${s.locationName}'`)
+              .join('\n');
+          alert(`Data imported, but ${skippedStockEntries.length} stock entries were skipped due to unrecognized warehouse locations.\n\nExamples:\n${skippedSummary}\n\nPlease use one of the predefined locations: ${locations.map(l=>l.name).join(', ')}.`);
+      } else {
+          alert('Data imported successfully!');
+      }
+    }, [setAppState]);
 
     const handleBulkUpdate = useCallback((changes: { description?: string; category?: string; subCategory?: string; }) => {
         setAppState(prev => ({
@@ -257,7 +287,7 @@ const App: React.FC = () => {
             }
         });
         return report;
-    }, [locations, stock]);
+    }, [stock]);
 
     const handleGenerateReport = useCallback((options: { type: 'all' | 'category' | 'selected' | 'single' | 'low-alert', value?: string }) => {
         let itemsToReport: InventoryItem[] = [];
@@ -290,28 +320,45 @@ const App: React.FC = () => {
         }
 
         const locationMap = new Map(locations.map(loc => [loc.id, loc.name]));
-        const dataToExport: any[] = [];
+        const dataToExport: Record<string, unknown>[] = [];
+        const ALL_YEARS = [2021, 2022, 2023, 2024, 2025];
+        
+        const headers = [
+            'ID', 'DESCRIPTION', 'CATEGORY', 'SUB_CATEGORY', 'LOW_ALERT_QTY',
+            ...ALL_YEARS.map(y => `USAGE_${y}`),
+            'AVG_USAGE', 'ETR', 'LOCATION', 'SUB_LOCATION', 'QTY', 'SOURCE', 'PO_NUMBER', 'DATE_RECEIVED'
+        ];
 
         items.forEach(item => {
             const itemStock = stock.filter(s => s.itemId === item.id);
             const totalQty = itemStock.reduce((sum, s) => sum + s.quantity, 0);
-            const etr = item.threeYearAvg && item.threeYearAvg > 0 && totalQty > 0
-                ? `${((totalQty / (item.threeYearAvg / 12))).toFixed(1)} months`
+            
+            const averageUsage = calculateAverageUsage(item.priorUsage);
+            const etr = averageUsage > 0 && totalQty > 0
+                ? `${((totalQty / (averageUsage / 12))).toFixed(1)} MONTHS`
                 : 'N/A';
+
+            const usageData: { [key: string]: number | string } = {};
+            ALL_YEARS.forEach(year => {
+                const usageEntry = item.priorUsage?.find(u => u.year === year);
+                usageData[`USAGE_${year}`] = usageEntry ? usageEntry.usage : '';
+            });
+
+            const baseData = {
+                'ID': item.id,
+                'DESCRIPTION': item.description,
+                'CATEGORY': item.category || '',
+                'SUB_CATEGORY': item.subCategory || '',
+                'LOW_ALERT_QTY': item.lowAlertQuantity ?? '',
+                ...usageData,
+                'AVG_USAGE': averageUsage > 0 ? averageUsage.toFixed(0) : '',
+                'ETR': etr,
+            };
 
             if (itemStock.length > 0) {
                 itemStock.forEach(s => {
                     dataToExport.push({
-                        'ID': item.id,
-                        'DESCRIPTION': item.description,
-                        'CATEGORY': item.category || '',
-                        'SUB_CATEGORY': item.subCategory || '',
-                        'LOW_ALERT_QTY': item.lowAlertQuantity || '',
-                        'FY2023': item.fy2023 || '',
-                        'FY2024': item.fy2024 || '',
-                        'FY2025': item.fy2025 || '',
-                        '3_YR_AVG': item.threeYearAvg || 0,
-                        'ETR': etr,
+                        ...baseData,
                         'LOCATION': locationMap.get(s.locationId) || s.locationId,
                         'SUB_LOCATION': s.subLocationDetail || '',
                         'QTY': s.quantity,
@@ -322,16 +369,7 @@ const App: React.FC = () => {
                 });
             } else {
                 dataToExport.push({
-                    'ID': item.id,
-                    'DESCRIPTION': item.description,
-                    'CATEGORY': item.category || '',
-                    'SUB_CATEGORY': item.subCategory || '',
-                    'LOW_ALERT_QTY': item.lowAlertQuantity || '',
-                    'FY2023': item.fy2023 || '',
-                    'FY2024': item.fy2024 || '',
-                    'FY2025': item.fy2025 || '',
-                    '3_YR_AVG': item.threeYearAvg || 0,
-                    'ETR': etr,
+                    ...baseData,
                     'LOCATION': '',
                     'SUB_LOCATION': '',
                     'QTY': 0,
@@ -349,11 +387,10 @@ const App: React.FC = () => {
             }
             return str;
         };
-
-        const headers = Object.keys(dataToExport[0]);
+        
         const csvContent = [
             headers.join(','),
-            ...dataToExport.map(row => headers.map(header => formatCsvField(row[header as keyof typeof row])).join(','))
+            ...dataToExport.map(row => headers.map(header => formatCsvField(row[header])).join(','))
         ].join('\n');
         
         const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -365,7 +402,7 @@ const App: React.FC = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [items, stock, locations]);
+    }, [items, stock]);
 
     const lowAlertItemCount = useMemo(() => {
         const stockMap = new Map<string, number>();
@@ -386,16 +423,29 @@ const App: React.FC = () => {
                 onImportClick={() => setImportModalOpen(true)}
                 onExportClick={handleExportAllListings}
                 onReportClick={() => setReportModalOpen(true)}
-                canUndo={canUndo}
-                canRedo={canRedo}
-                onUndo={undo}
-                onRedo={redo}
+                onSearchClick={() => setIsSearchVisible(prev => !prev)}
             />
+            {isSearchVisible && (
+                 <div className="bg-white shadow-md animate-fade-in-down">
+                    <div className="fluid-container py-3">
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><MagnifyingGlassIcon className="h-5 w-5 text-gray-400" /></div>
+                            <input 
+                                type="text" 
+                                className="form-control pl-10" 
+                                placeholder="SEARCH BY ID, DESCRIPTION, OR CATEGORY..." 
+                                value={searchQuery} 
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
             <main className="fluid-container py-8">
-                <LocationTabs 
-                    locations={locations}
-                    selectedLocation={selectedLocationView}
-                    onSelectLocation={setSelectedLocationView}
+                <NavigationView 
+                    currentView={currentView}
+                    onSelectView={setCurrentView}
                 />
                 <InventoryTable
                     items={items}
@@ -411,7 +461,8 @@ const App: React.FC = () => {
                     onGenerateReportForItem={(itemId) => handleGenerateReport({ type: 'single', value: itemId })}
                     categoryColors={categoryColors}
                     onBulkEditClick={() => setBulkEditModalOpen(true)}
-                    locationView={selectedLocationView}
+                    view={currentView}
+                    searchQuery={searchQuery}
                 />
             </main>
             {isAddItemModalOpen && <AddItemModal onClose={handleCloseAddItemModal} onAddItem={handleAddItem} locations={locations} existingItemIds={items.map(i => i.id)} itemToDuplicate={itemToDuplicate} currentCategoryColors={categoryColors}/>}

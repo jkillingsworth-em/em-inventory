@@ -1,23 +1,18 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { PlusIcon } from './icons/PlusIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
-import { UndoIcon } from './icons/UndoIcon';
-import { RedoIcon } from './icons/RedoIcon';
+import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 
 interface HeaderProps {
     onAddItemClick: () => void;
     onImportClick: () => void;
     onExportClick: () => void;
     onReportClick: () => void;
-    canUndo: boolean;
-    canRedo: boolean;
-    onUndo: () => void;
-    onRedo: () => void;
+    onSearchClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
-    onAddItemClick, onImportClick, onExportClick, onReportClick,
-    canUndo, canRedo, onUndo, onRedo 
+    onAddItemClick, onImportClick, onExportClick, onReportClick, onSearchClick
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -40,21 +35,13 @@ const Header: React.FC<HeaderProps> = ({
     return (
         <header className="bg-em-dark-blue shadow-md sticky top-0 z-40">
             <div className="fluid-container">
-                <div className="flex items-center justify-between h-20">
-                    <div className="flex items-center gap-4">
-                        <h1 className="titlefont">
+                <div className="flex flex-col md:flex-row items-center md:justify-between h-auto py-4 md:h-20 md:py-0">
+                    <div className="flex-shrink-0 w-full md:w-auto">
+                        <h1 className="titlefont text-3xl sm:text-4xl lg:text-5xl text-center md:text-left">
                             <span className="text-em-red">ELECTRO-MECH</span> INVENTORY
                         </h1>
-                        <div className="flex items-center space-x-1 bg-black bg-opacity-20 rounded-lg">
-                            <button onClick={onUndo} disabled={!canUndo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="UNDO">
-                                <UndoIcon className="w-5 h-5 text-white" />
-                            </button>
-                            <button onClick={onRedo} disabled={!canRedo} className="p-2 rounded-md hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed" title="REDO">
-                                <RedoIcon className="w-5 h-5 text-white" />
-                            </button>
-                        </div>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center justify-center space-x-3 mt-4 md:mt-0">
                          <button onClick={onAddItemClick} className="flex items-center px-3 py-2 text-sm font-medium text-white bg-em-red hover:bg-red-700 rounded-md transition duration-150 shadow-sm">
                             <PlusIcon className="h-5 w-5 mr-1" />
                             <span className="hidden sm:inline">ADD ITEM</span>
@@ -73,6 +60,9 @@ const Header: React.FC<HeaderProps> = ({
                                 </div>
                             )}
                         </div>
+                        <button onClick={onSearchClick} className="p-2 text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 rounded-md transition duration-150 border border-gray-600" title="Search Inventory">
+                           <MagnifyingGlassIcon className="h-5 w-5"/>
+                        </button>
                     </div>
                 </div>
             </div>
