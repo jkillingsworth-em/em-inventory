@@ -10,6 +10,8 @@ import { PencilSquareIcon } from './icons/PencilSquareIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
 import { SortIcon } from './icons/SortIcon';
 import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
+import FilterModal from './FilterModal';
+import { FilterIcon } from './icons/FilterIcon';
 
 interface InventoryTableProps {
     items: InventoryItem[];
@@ -69,6 +71,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     // Filter States
     const [filterCategory, setFilterCategory] = useState('');
     const [filterLocation, setFilterLocation] = useState('');
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
     // Set default grouping based on the view
     useEffect(() => {
@@ -347,6 +350,18 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
         </div>
     );
 
+    const isFilterActive = filterCategory !== '' || filterLocation !== '';
+
+    const handleApplyFilters = (filters: { category: string; location: string }) => {
+        setFilterCategory(filters.category);
+        setFilterLocation(filters.location);
+    };
+
+    const handleClearFilters = () => {
+        setFilterCategory('');
+        setFilterLocation('');
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
@@ -354,31 +369,47 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     <div className="flex items-center flex-col sm:flex-row gap-6 w-full md:w-auto">
                         {selectedItemIds.size > 0 && <button onClick={onBulkEditClick} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 w-full sm:w-auto">BULK EDIT ({selectedItemIds.size})</button>}
                         
-                        {(view === 'categories') && (
-                            <div className="relative">
-                                <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="link-style-select">
-                                    <option value="">ALL CATEGORIES</option>
-                                    {Object.keys(categoryHierarchy).sort().map(cat => (
-                                        <React.Fragment key={cat}>
-                                            <option value={cat}>{cat}</option>
-                                            {Array.from(categoryHierarchy[cat]).sort().map(sub => (
-                                                <option key={`${cat}|${sub}`} value={`${cat}|${sub}`}>{cat} / {sub}</option>
-                                            ))}
-                                        </React.Fragment>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                        {/* Desktop Filters */}
+                        <div className="hidden md:flex items-center gap-6">
+                            {(view === 'all' || view === 'categories') && (
+                                <div className="relative">
+                                    <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="link-style-select">
+                                        <option value="">ALL CATEGORIES</option>
+                                        {Object.keys(categoryHierarchy).sort().map(cat => (
+                                            <React.Fragment key={cat}>
+                                                <option value={cat}>{cat}</option>
+                                                {Array.from(categoryHierarchy[cat]).sort().map(sub => (
+                                                    <option key={`${cat}|${sub}`} value={`${cat}|${sub}`}>{cat} / {sub}</option>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
-                        {(view === 'locations') && (
-                             <div className="relative">
-                                <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="link-style-select">
-                                    <option value="">ALL LOCATIONS</option>
-                                    {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                                </select>
-                            </div>
-                        )}
+                            {(view === 'all' || view === 'locations') && (
+                                <div className="relative">
+                                    <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)} className="link-style-select">
+                                        <option value="">ALL LOCATIONS</option>
+                                        {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Mobile Filter Button */}
+                        <div className="md:hidden w-full">
+                            <button 
+                                onClick={() => setIsFilterModalOpen(true)}
+                                className="w-full flex justify-center items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 relative"
+                            >
+                                <FilterIcon className="w-5 h-5" />
+                                FILTERS
+                                {isFilterActive && <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-em-red"></span>}
+                            </button>
+                        </div>
                     </div>
+
                     {view === 'all' && (
                        <div className="flex flex-col sm:flex-row gap-4">
                             <GroupToggle label="GROUP BY CATEGORY" checked={groupBy === 'category'} onChange={() => setGroupBy(prev => prev === 'category' ? 'none' : 'category')} />
@@ -443,6 +474,17 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                     </tbody>
                 </table>
             </div>
+            
+            <FilterModal
+                isOpen={isFilterModalOpen}
+                onClose={() => setIsFilterModalOpen(false)}
+                onApply={handleApplyFilters}
+                onClear={handleClearFilters}
+                locations={locations}
+                categoryHierarchy={categoryHierarchy}
+                currentCategory={filterCategory}
+                currentLocation={filterLocation}
+            />
         </div>
     );
 };

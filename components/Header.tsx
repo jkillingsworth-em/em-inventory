@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PlusIcon } from './icons/PlusIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { MagnifyingGlassIcon } from './icons/MagnifyingGlassIcon';
+import { CameraIcon } from './icons/CameraIcon';
 
 interface HeaderProps {
     onAddItemClick: () => void;
@@ -9,10 +10,11 @@ interface HeaderProps {
     onExportClick: () => void;
     onReportClick: () => void;
     onSearchClick: () => void;
+    onScanClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
-    onAddItemClick, onImportClick, onExportClick, onReportClick, onSearchClick
+    onAddItemClick, onImportClick, onExportClick, onReportClick, onSearchClick, onScanClick
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,9 @@ const Header: React.FC<HeaderProps> = ({
                         </div>
                         <button onClick={onSearchClick} className="p-2 text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 rounded-md transition duration-150 border border-gray-600" title="Search Inventory">
                            <MagnifyingGlassIcon className="h-5 w-5"/>
+                        </button>
+                         <button onClick={onScanClick} className="p-2 text-sm font-medium text-white bg-gray-700 hover:bg-gray-600 rounded-md transition duration-150 border border-gray-600" title="Scan Barcode">
+                           <CameraIcon className="h-5 w-5"/>
                         </button>
                     </div>
                 </div>

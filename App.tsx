@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { InventoryItem, Location, Stock, ReportDataItem } from './types';
 import Header from './components/Header';
 import InventoryTable from './components/InventoryTable';
@@ -11,6 +11,49 @@ import ReportPreviewModal from './components/ReportPreviewModal';
 import BulkEditModal from './components/BulkEditModal';
 import NavigationView from './components/NavigationView';
 import { MagnifyingGlassIcon } from './components/icons/MagnifyingGlassIcon';
+import BarcodeScannerModal from './components/BarcodeScannerModal';
+
+// Add a declaration for the storage API to satisfy TypeScript, making `frame` optional.
+declare global {
+  interface Window {
+    frame?: {
+      storage: {
+        get: (key: string) => Promise<string | null>;
+        set: (key: string, value: string) => Promise<void>;
+      }
+    }
+  }
+}
+
+// Create a storage utility that safely handles both frame storage and localStorage
+const storage = {
+    get: async (key: string): Promise<string | null> => {
+        // Use frame.storage if available
+        if (window.frame && window.frame.storage) {
+            try {
+                return await window.frame.storage.get(key);
+            } catch (e) {
+                console.warn("frame.storage.get failed, falling back to localStorage", e);
+            }
+        }
+        // Fallback to localStorage
+        return localStorage.getItem(key);
+    },
+    set: async (key: string, value: string): Promise<void> => {
+        // Use frame.storage if available
+        if (window.frame && window.frame.storage) {
+             try {
+                await window.frame.storage.set(key, value);
+                return;
+            } catch (e) {
+                console.warn("frame.storage.set failed, falling back to localStorage", e);
+            }
+        }
+        // Fallback to localStorage
+        localStorage.setItem(key, value);
+    }
+};
+
 
 // Location data is now a static constant.
 const locations: Location[] = [
@@ -58,6 +101,7 @@ const App: React.FC = () => {
     const [isImportModalOpen, setImportModalOpen] = useState(false);
     const [isReportModalOpen, setReportModalOpen] = useState(false);
     const [isBulkEditModalOpen, setBulkEditModalOpen] = useState(false);
+    const [isScannerOpen, setScannerOpen] = useState(false);
 
     const [itemToEdit, setItemToEdit] = useState<InventoryItem | null>(null);
     const [itemToMove, setItemToMove] = useState<InventoryItem | null>(null);
@@ -68,13 +112,64 @@ const App: React.FC = () => {
     const [currentView, setCurrentView] = useState<'all' | 'categories' | 'locations'>('all');
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
 
     // Main Application State
-    const [appState, setAppState] = useState({
-        items: initialItems,
-        stock: initialStock,
-        categoryColors: initialColors,
+    const [appState, setAppState] = useState<{
+        items: InventoryItem[];
+        stock: Stock[];
+        categoryColors: Record<string, string>;
+    }>({
+        items: [],
+        stock: [],
+        categoryColors: {},
     });
+
+    // Load data from storage on component mount
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const savedDataString = await storage.get('inventoryData');
+                if (savedDataString) {
+                    setAppState(JSON.parse(savedDataString));
+                } else {
+                    const initialData = {
+                        items: initialItems,
+                        stock: initialStock,
+                        categoryColors: initialColors
+                    };
+                    setAppState(initialData);
+                    await storage.set('inventoryData', JSON.stringify(initialData));
+                }
+            } catch (error) {
+                console.error("Failed to load data, falling back to initial data:", error);
+                setAppState({ items: initialItems, stock: initialStock, categoryColors: initialColors });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        loadData();
+    }, []);
+
+    // Save data to storage whenever appState changes (debounced)
+    useEffect(() => {
+        if (isLoading) return;
+
+        const handler = setTimeout(() => {
+            const saveData = async () => {
+                try {
+                    await storage.set('inventoryData', JSON.stringify(appState));
+                } catch (error) {
+                    console.error("Failed to save data:", error);
+                }
+            };
+            saveData();
+        }, 500); // Debounce save operations
+
+        return () => clearTimeout(handler);
+    }, [appState, isLoading]);
+
+
     const { items, stock, categoryColors } = appState;
 
     const handleOpenMoveModal = useCallback((item: InventoryItem) => {
@@ -117,7 +212,7 @@ const App: React.FC = () => {
                 return newSet;
             });
         }
-    }, [setAppState]);
+    }, []);
     
     const handleAddItem = useCallback((
         item: InventoryItem, 
@@ -139,7 +234,7 @@ const App: React.FC = () => {
             }
         });
         handleCloseAddItemModal();
-    }, [setAppState]);
+    }, []);
     
     const handleEditItem = useCallback((updatedItem: InventoryItem, updatedStockForThisItem: Stock[], colors?: { category?: string, subCategory?: string }) => {
         setAppState(prev => {
@@ -159,7 +254,7 @@ const App: React.FC = () => {
             };
         });
         handleCloseEditModal();
-    }, [setAppState]);
+    }, []);
 
     const handleMoveStock = useCallback((
         itemId: string,
@@ -187,7 +282,7 @@ const App: React.FC = () => {
             return { ...prev, stock: newStock.filter(s => s.quantity > 0) };
         });
         setMoveModalOpen(false);
-    }, [setAppState]);
+    }, []);
 
     const handleImportData = useCallback((importedItems: InventoryItem[], importedStock: Stock[]) => {
       const locationNameToId = new Map(locations.map(l => [l.name.toUpperCase(), l.id]));
@@ -236,7 +331,7 @@ const App: React.FC = () => {
       } else {
           alert('Data imported successfully!');
       }
-    }, [setAppState]);
+    }, []);
 
     const handleBulkUpdate = useCallback((changes: { description?: string; category?: string; subCategory?: string; }) => {
         setAppState(prev => ({
@@ -255,7 +350,7 @@ const App: React.FC = () => {
         }));
         setBulkEditModalOpen(false);
         setSelectedItemIds(new Set()); // Clear selection
-    }, [selectedItemIds, setAppState]);
+    }, [selectedItemIds]);
 
 
     const handleSelectionChange = useCallback((itemId: string) => {
@@ -415,6 +510,12 @@ const App: React.FC = () => {
         }).length;
     }, [items, stock]);
 
+    const handleScanSuccess = useCallback((result: string) => {
+        setSearchQuery(result);
+        setIsSearchVisible(true);
+        setScannerOpen(false);
+    }, []);
+
 
     return (
         <div className="min-h-screen bg-gray-100 text-em-gray">
@@ -424,6 +525,7 @@ const App: React.FC = () => {
                 onExportClick={handleExportAllListings}
                 onReportClick={() => setReportModalOpen(true)}
                 onSearchClick={() => setIsSearchVisible(prev => !prev)}
+                onScanClick={() => setScannerOpen(true)}
             />
             {isSearchVisible && (
                  <div className="bg-white shadow-md animate-fade-in-down">
@@ -443,27 +545,39 @@ const App: React.FC = () => {
                 </div>
             )}
             <main className="fluid-container py-8">
-                <NavigationView 
-                    currentView={currentView}
-                    onSelectView={setCurrentView}
-                />
-                <InventoryTable
-                    items={items}
-                    locations={locations}
-                    stock={stock}
-                    onMoveClick={handleOpenMoveModal}
-                    onDeleteClick={handleDeleteItem}
-                    onDuplicateClick={handleOpenDuplicateModal}
-                    onEditClick={handleOpenEditModal}
-                    selectedItemIds={selectedItemIds}
-                    onSelectionChange={handleSelectionChange}
-                    onSelectAll={handleSelectAll}
-                    onGenerateReportForItem={(itemId) => handleGenerateReport({ type: 'single', value: itemId })}
-                    categoryColors={categoryColors}
-                    onBulkEditClick={() => setBulkEditModalOpen(true)}
-                    view={currentView}
-                    searchQuery={searchQuery}
-                />
+                 {isLoading ? (
+                    <div className="text-center py-20">
+                        <svg className="mx-auto h-12 w-12 text-gray-400 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <h3 className="mt-4 text-lg font-semibold text-gray-700">LOADING INVENTORY DATA...</h3>
+                    </div>
+                ) : (
+                    <>
+                        <NavigationView 
+                            currentView={currentView}
+                            onSelectView={setCurrentView}
+                        />
+                        <InventoryTable
+                            items={items}
+                            locations={locations}
+                            stock={stock}
+                            onMoveClick={handleOpenMoveModal}
+                            onDeleteClick={handleDeleteItem}
+                            onDuplicateClick={handleOpenDuplicateModal}
+                            onEditClick={handleOpenEditModal}
+                            selectedItemIds={selectedItemIds}
+                            onSelectionChange={handleSelectionChange}
+                            onSelectAll={handleSelectAll}
+                            onGenerateReportForItem={(itemId) => handleGenerateReport({ type: 'single', value: itemId })}
+                            categoryColors={categoryColors}
+                            onBulkEditClick={() => setBulkEditModalOpen(true)}
+                            view={currentView}
+                            searchQuery={searchQuery}
+                        />
+                    </>
+                )}
             </main>
             {isAddItemModalOpen && <AddItemModal onClose={handleCloseAddItemModal} onAddItem={handleAddItem} locations={locations} existingItemIds={items.map(i => i.id)} itemToDuplicate={itemToDuplicate} currentCategoryColors={categoryColors}/>}
             {isEditModalOpen && itemToEdit && <EditItemModal item={itemToEdit} stock={stock.filter(s => s.itemId === itemToEdit.id)} locations={locations} onClose={handleCloseEditModal} onEditItem={handleEditItem} currentCategoryColors={categoryColors} fieldToFocus={fieldToFocus} />}
@@ -472,6 +586,7 @@ const App: React.FC = () => {
             {isReportModalOpen && <GenerateReportModal onClose={() => setReportModalOpen(false)} onGenerate={handleGenerateReport} items={items} selectedItemCount={selectedItemIds.size} lowAlertItemCount={lowAlertItemCount}/>}
             {reportData && <ReportPreviewModal reportData={reportData} onClose={() => setReportData(null)}/>}
             {isBulkEditModalOpen && <BulkEditModal onClose={() => setBulkEditModalOpen(false)} onSaveChanges={handleBulkUpdate} selectedItemCount={selectedItemIds.size}/>}
+            {isScannerOpen && <BarcodeScannerModal isOpen={isScannerOpen} onClose={() => setScannerOpen(false)} onScan={handleScanSuccess} />}
         </div>
     );
 };
