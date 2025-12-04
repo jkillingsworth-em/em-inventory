@@ -10,74 +10,129 @@ interface BarcodeScannerModalProps {
     onScan: (result: string) => void;
 }
 
+const ZXING_URL = 'https://unpkg.com/@zxing/library@latest/umd/zxing.min.js';
+let zxingPromise: Promise<void> | null = null;
+
+const loadScannerScript = (): Promise<void> => {
+    if (zxingPromise) {
+        return zxingPromise;
+    }
+
+    zxingPromise = new Promise((resolve, reject) => {
+        if (typeof ZXing !== 'undefined') {
+            return resolve();
+        }
+
+        const script = document.createElement('script');
+        script.src = ZXING_URL;
+        script.async = true;
+        
+        script.onload = () => {
+            if (typeof ZXing !== 'undefined') {
+                resolve();
+            } else {
+                document.body.removeChild(script);
+                zxingPromise = null;
+                reject(new Error("ZXing library loaded but is not available on window."));
+            }
+        };
+        
+        script.onerror = (error) => {
+            document.body.removeChild(script);
+            zxingPromise = null;
+            reject(error);
+        };
+
+        document.body.appendChild(script);
+    });
+
+    return zxingPromise;
+};
+
+
 const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ isOpen, onClose, onScan }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const codeReaderRef = useRef<any>(null);
+    const [statusMessage, setStatusMessage] = useState('INITIALIZING SCANNER...');
 
     useEffect(() => {
-        // Reset state every time the modal opens
-        if (isOpen) {
-            setError(null);
-            setIsLoading(true);
-        } else {
+        const cleanup = () => {
+            if (codeReaderRef.current) {
+                codeReaderRef.current.reset();
+                codeReaderRef.current = null;
+            }
+        };
+
+        if (!isOpen) {
+            cleanup();
             return;
         }
 
-        // Check if the ZXing library is loaded on the window object
-        if (typeof ZXing === 'undefined') {
-            setError("Scanner library failed to load. Please check your connection and try again.");
-            setIsLoading(false);
-            return;
-        }
-
-        const codeReader = new ZXing.BrowserMultiFormatReader();
-        let selectedDeviceId: string | undefined;
-
+        let isCancelled = false;
+        
         const startScanner = async () => {
             try {
+                setStatusMessage('LOADING SCANNER LIBRARY...');
+                await loadScannerScript();
+                
+                if (isCancelled) return;
+                
+                setStatusMessage('INITIALIZING SCANNER...');
+                const codeReader = new ZXing.BrowserMultiFormatReader();
+                codeReaderRef.current = codeReader;
+
                 const videoInputDevices = await codeReader.listVideoInputDevices();
+                if (isCancelled) return;
+
                 if (videoInputDevices.length === 0) {
-                    setError("No camera found.");
-                    setIsLoading(false);
-                    return;
+                    throw new Error("No camera found on this device.");
                 }
 
-                // Prefer the back camera if available
-                const rearCamera = videoInputDevices.find(device => device.label.toLowerCase().includes('back')) || videoInputDevices[0];
-                selectedDeviceId = rearCamera.deviceId;
-
-                setIsLoading(false);
+                const rearCamera = videoInputDevices.find((device: any) => device.label.toLowerCase().includes('back')) || videoInputDevices[0];
+                const selectedDeviceId = rearCamera.deviceId;
                 
-                if (videoRef.current) {
-                    // This method is non-blocking and uses a callback
-                    codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result, err) => {
+                if (videoRef.current && !isCancelled) {
+                    setStatusMessage('');
+                    codeReader.decodeFromVideoDevice(selectedDeviceId, videoRef.current, (result: any, err: any) => {
                         if (result) {
                             onScan(result.getText());
                         }
-                        // Ignore the common NotFoundException, as it fires between frames
                         if (err && !(err instanceof ZXing.NotFoundException)) {
-                            console.error('Scan Error:', err);
-                            setError('An error occurred during scanning.');
+                            // This error is frequent and normal, just means no barcode was found in the frame.
+                            // We don't want to log it unless for deep debugging.
                         }
                     });
                 }
-            } catch (err: any) {
-                console.error("Camera access error:", err);
-                if (err.name === 'NotAllowedError') {
-                    setError("Camera permission denied. Please allow access in your browser settings.");
-                } else {
-                    setError("Could not access camera. Please check permissions.");
+            } catch (err) {
+                if (isCancelled) return;
+                
+                console.error("Scanner setup error:", err);
+                
+                // --- Robust Error Handling ---
+                let friendlyMessage = "AN UNKNOWN SCANNER ERROR OCCURRED.";
+                if (err instanceof Error) {
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                        friendlyMessage = "ERROR: CAMERA PERMISSION DENIED. PLEASE ALLOW ACCESS IN YOUR BROWSER SETTINGS.";
+                    } else if (err.message.includes("No camera found")) {
+                         friendlyMessage = "ERROR: NO CAMERA FOUND ON THIS DEVICE.";
+                    } else if (err.message.includes("ZXing")) {
+                        friendlyMessage = "ERROR: SCANNER LIBRARY FAILED TO LOAD. PLEASE CHECK YOUR CONNECTION AND TRY AGAIN.";
+                    } else {
+                        friendlyMessage = `ERROR: ${err.message}`;
+                    }
+                } else if (typeof err === 'string') {
+                    friendlyMessage = err;
                 }
-                setIsLoading(false);
+                
+                setStatusMessage(friendlyMessage);
             }
         };
         
         startScanner();
 
-        // Cleanup function to release the camera when the component unmounts or modal closes
         return () => {
-            codeReader.reset();
+            isCancelled = true;
+            cleanup();
         };
     }, [isOpen, onScan]);
 
@@ -99,10 +154,11 @@ const BarcodeScannerModal: React.FC<BarcodeScannerModalProps> = ({ isOpen, onClo
                         <div className="w-3/4 h-1/2 border-4 border-red-500 border-dashed rounded-lg opacity-75"></div>
                     </div>
 
-                    {(isLoading || error) && (
+                    {statusMessage && (
                         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-lg font-bold text-center p-4">
-                            {isLoading && 'STARTING CAMERA...'}
-                            {error && `ERROR: ${error}`}
+                           <div className="border-2 border-dashed border-red-500 p-6 rounded-lg">
+                                {statusMessage}
+                           </div>
                         </div>
                     )}
                 </div>
