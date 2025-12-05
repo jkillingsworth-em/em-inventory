@@ -9,12 +9,13 @@ interface HeaderProps {
     onImportClick: () => void;
     onExportClick: () => void;
     onReportClick: () => void;
+    onPrintBatchClick: () => void;
     onSearchClick: () => void;
     onScanClick: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({ 
-    onAddItemClick, onImportClick, onExportClick, onReportClick, onSearchClick, onScanClick
+    onAddItemClick, onImportClick, onExportClick, onReportClick, onPrintBatchClick, onSearchClick, onScanClick
 }) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -59,6 +60,7 @@ const Header: React.FC<HeaderProps> = ({
                                     <button onClick={() => handleMenuAction(onImportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">IMPORT DATA (CSV)</button>
                                     <button onClick={() => handleMenuAction(onExportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">EXPORT LISTINGS</button>
                                     <button onClick={() => handleMenuAction(onReportClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">GENERATE REPORT</button>
+                                    <button onClick={() => handleMenuAction(onPrintBatchClick)} className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">PRINT BARCODES</button>
                                 </div>
                             )}
                         </div>

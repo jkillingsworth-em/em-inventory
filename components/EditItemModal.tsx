@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { InventoryItem, Stock, Location } from '../types';
+import { InventoryItem, Stock, Location, PrintableLabel } from '../types';
 import { XMarkIcon } from './icons/XMarkIcon';
 import { PlusIcon } from './icons/PlusIcon';
 import { TrashIcon } from './icons/TrashIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
 
 interface EditItemModalProps {
     item: InventoryItem;
@@ -10,6 +11,7 @@ interface EditItemModalProps {
     locations: Location[];
     onClose: () => void;
     onEditItem: (item: InventoryItem, stock: Stock[], colors?: { category?: string, subCategory?: string }) => void;
+    onPrintSpecificLabel: (label: PrintableLabel) => void;
     currentCategoryColors: Record<string, string>;
     fieldToFocus?: string | null;
 }
@@ -24,7 +26,7 @@ interface PriorUsageEntry {
 
 const ALL_YEARS = [2025, 2024, 2023, 2022, 2021];
 
-const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, onClose, onEditItem, currentCategoryColors, fieldToFocus }) => {
+const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, onClose, onEditItem, onPrintSpecificLabel, currentCategoryColors, fieldToFocus }) => {
     // Refs for focusing
     const descriptionRef = useRef<HTMLInputElement>(null);
     const categoryRef = useRef<HTMLInputElement>(null);
@@ -287,7 +289,20 @@ const EditItemModal: React.FC<EditItemModalProps> = ({ item, stock, locations, o
                                                     />
                                                 </div>
 
-                                                <div className="flex items-center justify-end">
+                                                <div className="flex items-center justify-end space-x-1">
+                                                    <button type="button" onClick={() => {
+                                                        const location = locationMap.get(s.locationId);
+                                                        if (location) {
+                                                            onPrintSpecificLabel({
+                                                                itemId: item.id,
+                                                                description: description,
+                                                                locationName: location.name,
+                                                                subLocationDetail: s.subLocationDetail
+                                                            });
+                                                        }
+                                                    }} className="text-gray-600 hover:text-gray-900 p-2" title="Print Label for this Location">
+                                                        <PrinterIcon className="w-5 h-5" />
+                                                    </button>
                                                     <button type="button" onClick={() => handleRemoveStockEntry(s.uiKey)} className="text-red-600 hover:text-red-800 p-2" title="Delete Stock Entry">
                                                         <TrashIcon className="w-5 h-5" />
                                                     </button>

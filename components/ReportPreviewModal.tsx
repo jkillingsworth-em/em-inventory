@@ -1,9 +1,8 @@
-
-
 import React from 'react';
-import { ReportDataItem } from '../types';
+import { ReportDataItem, PrintableLabel } from '../types';
 import { XMarkIcon } from './icons/XMarkIcon';
 import { ArrowDownTrayIcon } from './icons/ArrowDownTrayIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
 
 // This is to inform TypeScript about the jspdf library being available on the window object from the CDN
 declare global {
@@ -15,9 +14,10 @@ declare global {
 interface ReportPreviewModalProps {
     reportData: ReportDataItem[];
     onClose: () => void;
+    onPrintSpecificLabel: (label: PrintableLabel) => void;
 }
 
-const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onClose }) => {
+const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onClose, onPrintSpecificLabel }) => {
 
     const handleExportCSV = () => {
         const headers = ['ID', 'Description', 'Category', 'Sub-Category', 'Location', 'Sub-Location', 'Quantity', 'Source', 'PO Number', 'Date Received'];
@@ -100,6 +100,7 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onC
                                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
                                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO Details</th>
+                                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">PRINT</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200 text-sm">
@@ -118,6 +119,22 @@ const ReportPreviewModal: React.FC<ReportPreviewModalProps> = ({ reportData, onC
                                         <td className="px-4 py-3 whitespace-nowrap text-gray-600">{item.source}</td>
                                         <td className="px-4 py-3 whitespace-nowrap text-gray-600">
                                             {item.source === 'PO' ? `${item.poNumber || ''} (${item.dateReceived || ''})` : 'N/A'}
+                                        </td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                                            {item.locationName !== 'N/A' && (
+                                                <button
+                                                    onClick={() => onPrintSpecificLabel({
+                                                        itemId: item.id,
+                                                        description: item.description,
+                                                        locationName: item.locationName,
+                                                        subLocationDetail: item.subLocationDetail,
+                                                    })}
+                                                    className="btn-icon text-gray-500 hover:text-gray-800"
+                                                    title={`Print label for ${item.locationName}`}
+                                                >
+                                                    <PrinterIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

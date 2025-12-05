@@ -26,3 +26,10 @@ export interface Stock {
 export interface ReportDataItem extends InventoryItem, Omit<Stock, 'itemId' | 'locationId'> {
     locationName: string;
 }
+
+export interface PrintableLabel {
+    itemId: string;
+    description: string;
+    locationName: string;
+    subLocationDetail?: string;
+}

@@ -10,7 +10,14 @@
   },
   "dependencies": {
     "react-dom": "^19.2.0",
-    "react": "^19.2.0"
+    "react": "^19.2.0",
+    "@zxing/library": "^0.21.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "vite": "^7.2.6",
+    "path": "^0.12.7",
+    "react-barcode": "^1.6.1",
+    "url": "^0.11.4",
+    "firebase": "^12.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { InventoryItem, Location, Stock } from '../types';
+import { InventoryItem, Location, Stock, PrintableLabel } from '../types';
 import { TrashIcon } from './icons/TrashIcon';
 import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import { ChevronUpIcon } from './icons/ChevronUpIcon';
@@ -12,6 +12,8 @@ import { SortIcon } from './icons/SortIcon';
 import { ExclamationTriangleIcon } from './icons/ExclamationTriangleIcon';
 import FilterModal from './FilterModal';
 import { FilterIcon } from './icons/FilterIcon';
+import { BarcodeIcon } from './icons/BarcodeIcon';
+import { PrinterIcon } from './icons/PrinterIcon';
 
 interface InventoryTableProps {
     items: InventoryItem[];
@@ -21,6 +23,8 @@ interface InventoryTableProps {
     onDeleteClick: (itemId: string) => void;
     onDuplicateClick: (item: InventoryItem) => void;
     onEditClick: (item: InventoryItem, field?: string) => void;
+    onPrintBarcode: (item: InventoryItem) => void;
+    onPrintSpecificLabel: (label: PrintableLabel) => void;
     selectedItemIds: Set<string>;
     onSelectionChange: (itemId: string) => void;
     onSelectAll: (itemIds: string[], select: boolean) => void;
@@ -55,7 +59,7 @@ const calculateAverageUsage = (priorUsage?: { year: number; usage: number }[]): 
 
 
 const InventoryTable: React.FC<InventoryTableProps> = ({ 
-    items, locations, stock, onMoveClick, onDeleteClick, onDuplicateClick, onEditClick,
+    items, locations, stock, onMoveClick, onDeleteClick, onDuplicateClick, onEditClick, onPrintBarcode, onPrintSpecificLabel,
     selectedItemIds, onSelectionChange, onSelectAll, onGenerateReportForItem, categoryColors,
     onBulkEditClick, view, searchQuery
 }) => {
@@ -126,11 +130,9 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
             const allItemStock = stock.filter(s => s.itemId === item.id);
             const totalQuantity = allItemStock.reduce((sum, s) => sum + s.quantity, 0);
             
-            const stockInView = view === 'all' || view === 'categories'
-                ? allItemStock
-                : allItemStock.filter(s => s.locationId === view);
-
-            const quantityInView = stockInView.reduce((sum, s) => sum + s.quantity, 0);
+            // CORRECTED: 'quantityInView' should be the total quantity for consistent sorting and display.
+            // The view-specific filtering is handled later.
+            const quantityInView = totalQuantity;
 
             const locationsWithStock = allItemStock
                 .map(s => ({...s, locationName: locationMap.get(s.locationId) || 'UNKNOWN LOCATION'}))
@@ -159,14 +161,10 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                 isLowStock
             };
         });
-    }, [items, locations, stock, categoryColors, view]);
+    }, [items, locations, stock, categoryColors]);
 
     const filteredItems = useMemo(() => {
         let result = mappedItems;
-
-        if (view !== 'all' && view !== 'categories') {
-            result = result.filter(item => item.locationsWithStock.some(s => s.locationId === view));
-        }
 
         if (searchQuery) {
             const lower = searchQuery.toUpperCase();
@@ -184,7 +182,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 
         if (filterLocation) result = result.filter(item => item.locationsWithStock.some(l => l.locationId === filterLocation));
         return result;
-    }, [mappedItems, searchQuery, filterCategory, filterLocation, view]);
+    }, [mappedItems, searchQuery, filterCategory, filterLocation]);
 
     const sortedItems = useMemo(() => {
         return [...filteredItems].sort((a, b) => {
@@ -241,6 +239,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
 
     const renderActionButtons = (item: InventoryItem) => (
         <div className="flex items-center space-x-1">
+            <button onClick={() => onPrintBarcode(item)} className="btn-icon text-gray-600 hover:text-gray-900" title="PRINT BARCODE"><BarcodeIcon className="w-5 h-5" /></button>
             <button onClick={() => onGenerateReportForItem(item.id)} className="btn-icon text-green-600 hover:text-green-800" title="REPORT"><DocumentChartBarIcon className="w-5 h-5" /></button>
             <button onClick={() => onDuplicateClick(item)} className="btn-icon text-purple-600 hover:text-purple-800" title="DUPLICATE"><DocumentDuplicateIcon className="w-5 h-5" /></button>
             <button onClick={() => onEditClick(item)} className="btn-icon text-yellow-600 hover:text-yellow-800" title="EDIT"><PencilSquareIcon className="w-5 h-5" /></button>
@@ -273,7 +272,26 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                             <p className="text-sm font-semibold text-em-dark-blue">{item.etr}</p>
                         </div>
                     </div>
-                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">NO STOCK RECORDED.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock, idx) => (<div key={idx} className="flex justify-between items-center text-sm"><span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span><span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span></div>))}</div>}
+                    {item.locationsWithStock.length === 0 ? <p className="text-sm text-gray-500 italic">NO STOCK RECORDED.</p> : <div className="space-y-2">{item.locationsWithStock.map((locStock, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className="font-medium text-gray-700">{locStock.locationName}{locStock.subLocationDetail && <span className="text-gray-500 font-normal"> - {locStock.subLocationDetail}</span>}</span>
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-900 bg-white px-2 py-0.5 rounded border border-gray-200">{locStock.quantity}</span>
+                                <button
+                                    onClick={() => onPrintSpecificLabel({
+                                        itemId: item.id,
+                                        description: item.description,
+                                        locationName: locStock.locationName,
+                                        subLocationDetail: locStock.subLocationDetail
+                                    })}
+                                    className="btn-icon text-gray-500 hover:text-gray-800"
+                                    title={`Print label for ${locStock.locationName}`}
+                                >
+                                    <PrinterIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}</div>}
                 </div>
             )}
             <div className="mobile-card-footer">
@@ -307,10 +325,10 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
                         <span className="text-base font-bold text-em-dark-blue bg-white px-3 py-1 rounded-md border border-gray-200 shadow-sm">{item.etr}</span>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock, index) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">QTY: {locStock.quantity}</span></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>DETAIL:</strong> {locStock.subLocationDetail}</p>}<p><strong>SOURCE:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>DATE:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{item.locationsWithStock.map((locStock, index) => (<div key={index} className="bg-white p-3 rounded-md border border-gray-200 shadow-sm text-sm"><div className="flex justify-between items-center border-b pb-2 mb-2"><span className="text-em-dark-blue font-bold text-base">{locStock.locationName}</span><div className="flex items-center gap-2"><span className="bg-gray-100 text-gray-900 px-2 py-1 rounded font-bold">QTY: {locStock.quantity}</span><button onClick={() => onPrintSpecificLabel({ itemId: item.id, description: item.description, locationName: locStock.locationName, subLocationDetail: locStock.subLocationDetail })} className="btn-icon text-gray-500 hover:text-gray-800" title={`Print label for ${locStock.locationName}`}><PrinterIcon className="w-5 h-5" /></button></div></div><div className="space-y-1 text-gray-600">{locStock.subLocationDetail && <p><strong>DETAIL:</strong> {locStock.subLocationDetail}</p>}<p><strong>SOURCE:</strong> {locStock.source}</p>{locStock.source === 'PO' && (<><p><strong>PO #:</strong> {locStock.poNumber || 'N/A'}</p><p><strong>DATE:</strong> {locStock.dateReceived || 'N/A'}</p></>)}</div></div>))}</div></div></td></tr>)}
         </React.Fragment>
     ));
-    
+
     const renderLocationGroupedRows = (groupItems: { item: MappedItem; stock: Stock }[]) => groupItems.map(({ item, stock: stockEntry }) => (
         <React.Fragment key={`${stockEntry.locationId}-${stockEntry.subLocationDetail}-${item.id}`}>
              <tr className={`border-b border-gray-200 last:border-0 ${item.isLowStock ? 'bg-red-50 hover:bg-red-100' : ''}`} title={item.stockTooltip}>
@@ -331,7 +349,7 @@ const InventoryTable: React.FC<InventoryTableProps> = ({
     ));
 
 
-    const SortableHeader = ({ sortValue, title, children }: { sortValue: SortKey, title: string, children: React.ReactNode }) => (
+    const SortableHeader = ({ sortValue, title, children }: { sortValue: SortKey, title: string, children?: React.ReactNode }) => (
         <th scope="col" title={title}>
             <button onClick={() => handleSort(sortValue)} className="flex items-center gap-2 font-bold uppercase hover:text-em-red transition-colors">
                 {children}
