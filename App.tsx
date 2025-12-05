@@ -54,6 +54,17 @@ const calculateAverageUsage = (priorUsage?: { year: number; usage: number }[]): 
     return totalUsage / priorUsage.length;
 };
 
+// Helper function to remove undefined values from objects before sending to Firestore
+const cleanForFirebase = (data: object) => {
+    const cleanData = { ...data };
+    Object.keys(cleanData).forEach(key => {
+        if ((cleanData as any)[key] === undefined) {
+            delete (cleanData as any)[key];
+        }
+    });
+    return cleanData;
+};
+
 
 const App: React.FC = () => {
     // UI State
@@ -236,12 +247,12 @@ const App: React.FC = () => {
         
         // Add item
         const itemRef = doc(db, 'inventory', item.id);
-        batch.set(itemRef, item);
+        batch.set(itemRef, cleanForFirebase(item));
 
         // Add stock
         newStockEntries.forEach(entry => {
             const stockRef = doc(collection(db, 'stock'));
-            batch.set(stockRef, { ...entry, itemId: item.id });
+            batch.set(stockRef, cleanForFirebase({ ...entry, itemId: item.id }));
         });
         
         // Add/update colors
@@ -265,7 +276,7 @@ const App: React.FC = () => {
         
         // Update item
         const itemRef = doc(db, 'inventory', updatedItem.id);
-        batch.update(itemRef, { ...updatedItem });
+        batch.update(itemRef, cleanForFirebase({ ...updatedItem }));
 
         // First, delete all existing stock for this item
         const stockQuery = query(collection(db, "stock"), where("itemId", "==", updatedItem.id));
@@ -276,7 +287,7 @@ const App: React.FC = () => {
         updatedStockForThisItem.forEach(stockItem => {
             if (stockItem.quantity > 0) {
                 const newStockRef = doc(collection(db, "stock"));
-                batch.set(newStockRef, stockItem);
+                batch.set(newStockRef, cleanForFirebase(stockItem));
             }
         });
 
@@ -326,14 +337,21 @@ const App: React.FC = () => {
                     // Update existing destination stock
                     const toDoc = toSnapshot.docs[0];
                     const toData = toDoc.data() as Stock;
-                    transaction.update(toDoc.ref, { 
+
+                    const updateData: { quantity: number, subLocationDetail?: string } = {
                         quantity: toData.quantity + quantity,
-                        subLocationDetail: toSubLocationDetail || toData.subLocationDetail
-                    });
+                    };
+
+                    const newSubLocation = toSubLocationDetail !== undefined ? toSubLocationDetail : toData.subLocationDetail;
+                    if (newSubLocation !== undefined) {
+                        updateData.subLocationDetail = newSubLocation;
+                    }
+
+                    transaction.update(toDoc.ref, updateData);
                 } else {
                     // Create new destination stock
                     const newToRef = doc(collection(db, "stock"));
-                    transaction.set(newToRef, { 
+                    const newStockData = { 
                         itemId, 
                         locationId: toLocationId, 
                         quantity, 
@@ -341,7 +359,8 @@ const App: React.FC = () => {
                         source: fromData.source, 
                         poNumber: fromData.poNumber, 
                         dateReceived: fromData.dateReceived
-                    });
+                    };
+                    transaction.set(newToRef, cleanForFirebase(newStockData));
                 }
             });
             setMoveModalOpen(false);
@@ -413,7 +432,7 @@ const App: React.FC = () => {
         // Batch-add items
         for (const item of importedItems) {
             const itemRef = doc(db, 'inventory', item.id);
-            writeOpBatch.set(itemRef, item, { merge: true });
+            writeOpBatch.set(itemRef, cleanForFirebase(item), { merge: true });
             operationCount++;
             await commitCurrentBatchIfNeeded();
         }
@@ -422,7 +441,7 @@ const App: React.FC = () => {
         for (const stockItem of validImportedStock) {
             const stockRef = doc(collection(db, 'stock'));
             // The locationId is already correctly mapped from name to ID
-            writeOpBatch.set(stockRef, stockItem);
+            writeOpBatch.set(stockRef, cleanForFirebase(stockItem));
             operationCount++;
             await commitCurrentBatchIfNeeded();
         }
@@ -482,7 +501,7 @@ const App: React.FC = () => {
             }
         });
         return report;
-    }, [stock]);
+    }, [stock, locations]);
 
     const handleGenerateReport = useCallback((options: { type: 'all' | 'category' | 'selected' | 'single' | 'low-alert', value?: string }) => {
         let itemsToReport: InventoryItem[] = [];
@@ -597,7 +616,7 @@ const App: React.FC = () => {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-    }, [items, stock]);
+    }, [items, stock, locations]);
 
     const lowAlertItemCount = useMemo(() => {
         const stockMap = new Map<string, number>();
