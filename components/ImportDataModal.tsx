@@ -49,14 +49,24 @@ const ImportDataModal: React.FC<ImportDataModalProps> = ({ onClose, onImport }) 
             return;
         }
         setIsProcessing(true);
+        setError('');
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const text = e.target?.result as string;
                 const { items, stock } = parseCSV(text);
-                onImport(items, stock);
+                await onImport(items, stock);
+                // On success, the modal is closed by the parent, so no need to set isProcessing to false.
             } catch (err: any) {
-                setError(err.message || 'Failed to parse CSV file.');
+                let message = 'An unknown error occurred during processing.';
+                if (err.message) {
+                    message = err.message;
+                }
+                 // Check for Firestore specific error for large batches
+                if (err.code === 'invalid-argument' || (err.message && err.message.includes('500'))) {
+                    message = "Import failed: The file is too large and exceeds the database's single transaction limit (500 operations). Please split the file into smaller parts and try again.";
+                }
+                setError(message);
                 setIsProcessing(false);
             }
         };

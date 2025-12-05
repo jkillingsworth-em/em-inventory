@@ -363,11 +363,15 @@ const App: React.FC = () => {
         });
 
         // Delete all old stock for the imported items
-        const importedItemIds = new Set(importedItems.map(i => i.id));
-        if (importedItemIds.size > 0) {
-            const stockQuery = query(collection(db, "stock"), where("itemId", "in", Array.from(importedItemIds)));
-            const oldStockSnapshot = await getDocs(stockQuery);
-            oldStockSnapshot.forEach(doc => batch.delete(doc.ref));
+        const importedItemIds = Array.from(new Set(importedItems.map(i => i.id)));
+        if (importedItemIds.length > 0) {
+            const CHUNK_SIZE = 30; // Firestore 'in' query limit
+            for (let i = 0; i < importedItemIds.length; i += CHUNK_SIZE) {
+                const chunk = importedItemIds.slice(i, i + CHUNK_SIZE);
+                const stockQuery = query(collection(db, "stock"), where("itemId", "in", chunk));
+                const oldStockSnapshot = await getDocs(stockQuery);
+                oldStockSnapshot.forEach(doc => batch.delete(doc.ref));
+            }
         }
 
         // Add new stock
