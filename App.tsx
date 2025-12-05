@@ -354,38 +354,84 @@ const App: React.FC = () => {
     const handleImportData = useCallback(async (importedItems: InventoryItem[], importedStock: Stock[]) => {
         const locationNameToId = new Map(locations.map(l => [l.name.toUpperCase(), l.id]));
         const skippedStockEntries: { locationName: string, itemId: string }[] = [];
-        const batch = writeBatch(db);
 
-        // Process items
-        importedItems.forEach(item => {
-            const itemRef = doc(db, 'inventory', item.id);
-            batch.set(itemRef, item, { merge: true }); // Use merge to update existing items gracefully
-        });
-
-        // Delete all old stock for the imported items
-        const importedItemIds = Array.from(new Set(importedItems.map(i => i.id)));
-        if (importedItemIds.length > 0) {
-            const CHUNK_SIZE = 30; // Firestore 'in' query limit
-            for (let i = 0; i < importedItemIds.length; i += CHUNK_SIZE) {
-                const chunk = importedItemIds.slice(i, i + CHUNK_SIZE);
-                const stockQuery = query(collection(db, "stock"), where("itemId", "in", chunk));
-                const oldStockSnapshot = await getDocs(stockQuery);
-                oldStockSnapshot.forEach(doc => batch.delete(doc.ref));
-            }
-        }
-
-        // Add new stock
-        importedStock.forEach(impS => {
+        // Pre-process stock to filter out invalid locations and map names to IDs
+        const validImportedStock = importedStock.reduce((acc, impS) => {
             const locationId = locationNameToId.get(String(impS.locationId).toUpperCase());
             if (!locationId) {
                 skippedStockEntries.push({ locationName: String(impS.locationId), itemId: impS.itemId });
-                return;
+                return acc;
             }
+            acc.push({ ...impS, locationId });
+            return acc;
+        }, [] as (Omit<Stock, 'locationId'> & { locationId: string })[]);
+
+        const importedItemIds = Array.from(new Set(importedItems.map(i => i.id)));
+        const BATCH_LIMIT = 400; // Safely under Firestore's 500 operation limit
+
+        // --- Phase 1: Delete all existing stock for imported items in batches ---
+        if (importedItemIds.length > 0) {
+            const QUERY_CHUNK_SIZE = 30; // Firestore 'in' query limit is 30
+            for (let i = 0; i < importedItemIds.length; i += QUERY_CHUNK_SIZE) {
+                const idChunk = importedItemIds.slice(i, i + QUERY_CHUNK_SIZE);
+                const stockQuery = query(collection(db, "stock"), where("itemId", "in", idChunk));
+                const oldStockSnapshot = await getDocs(stockQuery);
+                
+                if (!oldStockSnapshot.empty) {
+                    let deleteBatch = writeBatch(db);
+                    let deleteCount = 0;
+                    
+                    for (const doc of oldStockSnapshot.docs) {
+                        deleteBatch.delete(doc.ref);
+                        deleteCount++;
+                        if (deleteCount >= BATCH_LIMIT) {
+                            await deleteBatch.commit();
+                            deleteBatch = writeBatch(db);
+                            deleteCount = 0;
+                        }
+                    }
+                    
+                    if (deleteCount > 0) {
+                        await deleteBatch.commit();
+                    }
+                }
+            }
+        }
+
+        // --- Phase 2: Write new data (items and stock) in batches ---
+        let writeOpBatch = writeBatch(db);
+        let operationCount = 0;
+
+        const commitCurrentBatchIfNeeded = async () => {
+            if (operationCount >= BATCH_LIMIT) {
+                await writeOpBatch.commit();
+                writeOpBatch = writeBatch(db);
+                operationCount = 0;
+            }
+        };
+
+        // Batch-add items
+        for (const item of importedItems) {
+            const itemRef = doc(db, 'inventory', item.id);
+            writeOpBatch.set(itemRef, item, { merge: true });
+            operationCount++;
+            await commitCurrentBatchIfNeeded();
+        }
+
+        // Batch-add new stock
+        for (const stockItem of validImportedStock) {
             const stockRef = doc(collection(db, 'stock'));
-            batch.set(stockRef, { ...impS, locationId });
-        });
+            // The locationId is already correctly mapped from name to ID
+            writeOpBatch.set(stockRef, stockItem);
+            operationCount++;
+            await commitCurrentBatchIfNeeded();
+        }
         
-        await batch.commit();
+        // Commit any remaining operations in the last batch
+        if (operationCount > 0) {
+            await writeOpBatch.commit();
+        }
+
         setImportModalOpen(false);
         
         if (skippedStockEntries.length > 0) {
@@ -394,7 +440,7 @@ const App: React.FC = () => {
         } else {
             alert('Data imported successfully!');
         }
-    }, []);
+    }, [locations]);
 
     const handleBulkUpdate = useCallback(async (changes: { description?: string; category?: string; subCategory?: string; }) => {
         const batch = writeBatch(db);
